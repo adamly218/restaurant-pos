@@ -27,15 +27,16 @@ const shortId = (value?: string): string => {
   return raw.length > 8 ? `…${raw.slice(-8)}` : raw;
 };
 
-type SyncDotKind = "offline" | "conflict" | "syncing" | "pending" | "idle";
+type SyncDotKind = "offline" | "conflict" | "syncing" | "pending" | "idle" | "error";
 
 function syncDotKind(
   sync: SyncStatusState,
   isEffectivelyConnected: boolean,
 ): SyncDotKind {
-  if (!isEffectivelyConnected || sync.phase === "offline" || sync.phase === "error") {
+  if (!isEffectivelyConnected || sync.phase === "offline") {
     return "offline";
   }
+  if (sync.phase === "error") return "error";
   if (sync.conflictCount > 0) return "conflict";
   if (
     sync.phase === "syncing"
@@ -196,6 +197,10 @@ export function AppToolbar() {
     switch (kind) {
       case "offline":
         return t("common:offline.disconnected");
+      case "error":
+        return sync.lastError
+          ? t("common:offline.syncFailed", { message: sync.lastError })
+          : t("common:offline.syncFailedGeneric");
       case "conflict":
         return t("common:offline.conflicts", { count: sync.conflictCount });
       case "syncing":
@@ -241,7 +246,7 @@ export function AppToolbar() {
           <span
             className={cn(
               "inline-block h-3 w-3 rounded-full",
-              kind === "offline" || kind === "conflict"
+              kind === "offline" || kind === "conflict" || kind === "error"
                 ? "bg-danger-500"
                 : kind === "syncing" || kind === "pending"
                   ? "bg-warning"

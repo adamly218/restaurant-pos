@@ -27,15 +27,15 @@ export const BuffetSessions = () => {
   const statusClass = (status: string) => {
     switch (status) {
       case "in_progress":
-        return "bg-info-100 text-info-800";
+        return "bg-info/15 text-info";
       case "closed":
-        return "bg-success-100 text-success-800";
+        return "bg-success/15 text-success";
       case "voided":
-        return "bg-danger-100 text-danger-800";
+        return "bg-danger/15 text-danger";
       case "closing":
-        return "bg-warning-100 text-warning-800";
+        return "bg-warning/15 text-warning";
       default:
-        return "bg-surface";
+        return "bg-surface text-foreground";
     }
   };
 

@@ -112,7 +112,9 @@
     "discardOp": "Ignorer",
     "conflictOrder": "Commande {{id}}",
     "conflictFailed": "{{count}} modification(s) n'ont pas atteint le serveur après plusieurs tentatives",
-    "synced": "Synchronisé"
+    "synced": "Synchronisé",
+    "syncFailed": "Échec de la synchronisation : {{message}}",
+    "syncFailedGeneric": "Échec de la synchronisation — appuyez pour réessayer"
   },
   "lock": {
     "lockedBy": "Verrouillé par {{name}}",

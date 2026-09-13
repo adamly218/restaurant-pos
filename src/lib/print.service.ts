@@ -52,7 +52,7 @@ const PRINTER_SETTING_KEYS: Record<string, string> = {
 const PRINT_CONFIG_KEYS: Record<string, string> = {
   temp: 'Temp Print',
   final: 'Final Print',
-  refund: 'Final Print',
+  refund: 'Refund Print',
   kitchen: 'Kitchen Print',
   deletion: 'Deletion Print',
   delivery: 'Delivery Print',
@@ -116,26 +116,42 @@ function normalizeReceiptSections(sections: unknown): unknown[] {
   });
 }
 
-function printerToDriverConfig(p: Printer): { type: string; ip?: string; port?: number, vid?: string, pid?: string } {
+function printerToDriverConfig(p: Printer): Record<string, unknown> {
   const type = String(p.type || 'network').toLowerCase();
-  return {
+  const cfg: Record<string, unknown> = {
     type,
     ip: p.ip_address,
     port: p.port,
     vid: p?.vid,
-    pid: p?.pid
+    pid: p?.pid,
+    name: p?.name,
+    id: p?.id != null ? String(p.id) : undefined,
   };
+  if (p.print_mode) cfg.print_mode = String(p.print_mode);
+  if (p.paper_width_mm != null && p.paper_width_mm !== ('' as unknown)) {
+    cfg.paper_width_mm = Number(p.paper_width_mm);
+  }
+  return cfg;
 }
 
 export async function getPrintConfig(db: PrintDB, template: string): Promise<Record<string, unknown>> {
   const key = PRINT_CONFIG_KEYS[template] || 'Final Print';
-  const [res] = await db.query(
-    `SELECT * FROM ${Tables.settings} WHERE key = $key AND is_global = true LIMIT 1`,
-    { key }
-  );
-  const rows = Array.isArray(res) ? res : [];
-  const row = rows[0] as { values?: Record<string, unknown> } | undefined;
-  const values = row?.values ?? {};
+  const loadValues = async (settingKey: string) => {
+    const [res] = await db.query(
+      `SELECT * FROM ${Tables.settings} WHERE key = $key AND is_global = true LIMIT 1`,
+      { key: settingKey }
+    );
+    const rows = Array.isArray(res) ? res : [];
+    const row = rows[0] as { values?: Record<string, unknown> } | undefined;
+    return row?.values ?? {};
+  };
+
+  let values = await loadValues(key);
+  // Before Refund Print is seeded, fall back to Final Print layout/engine settings.
+  if (template === 'refund' && (!values || Object.keys(values).length === 0)) {
+    values = await loadValues('Final Print');
+  }
+
   const logo = logoToBase64(values.logo);
   const currency = (import.meta.env.VITE_CURRENCY as string) || 'USD';
   const currencySymbol = CURRENCY_SYMBOLS[currency] || (import.meta.env.VITE_CURRENCY as string) || '$';

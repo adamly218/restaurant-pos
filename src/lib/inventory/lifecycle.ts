@@ -74,13 +74,13 @@ export const statusBadgeClass = (status?: string | null): string => {
     case "draft":
       return "bg-surface text-foreground";
     case "approved":
-      return "bg-info-100 text-info-800";
+      return "bg-info/15 text-info";
     case "posted":
-      return "bg-success-100 text-success-800";
+      return "bg-success/15 text-success";
     case "cancelled":
-      return "bg-warning-100 text-warning-800";
+      return "bg-warning/15 text-warning";
     case "voided":
-      return "bg-danger-100 text-danger-800";
+      return "bg-danger/15 text-danger";
     default:
       return "bg-surface text-foreground";
   }

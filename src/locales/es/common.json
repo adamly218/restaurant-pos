@@ -112,7 +112,9 @@
     "discardOp": "Descartar",
     "conflictOrder": "Pedido {{id}}",
     "conflictFailed": "{{count}} cambio(s) no llegaron al servidor tras varios intentos",
-    "synced": "Sincronizado"
+    "synced": "Sincronizado",
+    "syncFailed": "Error de sincronización: {{message}}",
+    "syncFailedGeneric": "Error de sincronización — toca para reintentar"
   },
   "lock": {
     "lockedBy": "Bloqueado por {{name}}",

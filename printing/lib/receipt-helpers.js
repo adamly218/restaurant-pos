@@ -33,6 +33,12 @@ const DEFAULTS = {
   rightMargin: 0,
   /** Printable bit-image width in dots (default 480; set 576 for full 80mm). */
   paperWidthPx: PAPER_IMAGE_WIDTH_PX,
+  /** Physical paper width in mm — preferred over midpoint default when set. */
+  paperWidthMm: 80,
+  printMode: 'text',
+  rasterThreshold: 180,
+  rasterMaxHeightPx: 0,
+  renderOptions: {},
   logo: '',
   showItemNumber: false,
   showItemName: true,
@@ -205,6 +211,42 @@ function normalizeConfig(c = {}) {
     const x = parseInt(v, 10);
     return Number.isNaN(x) ? (def !== undefined ? def : 0) : x;
   };
+  const { resolvePrintMode, paperWidthMmToPx, DEFAULT_PAPER_WIDTH_MM, DEFAULT_RASTER_THRESHOLD } =
+    require('./print-mode');
+
+  let paperWidthMm = DEFAULT_PAPER_WIDTH_MM;
+  if (c.paperWidthMm != null && c.paperWidthMm !== '') {
+    const mm = parseInt(String(c.paperWidthMm), 10);
+    if (mm === 58 || mm === 80) paperWidthMm = mm;
+  }
+
+  const fromMm = paperWidthMmToPx(paperWidthMm);
+  const cfgForWidth = {
+    ...c,
+    paperWidthMm,
+    // Prefer explicit mm mapping; still allow paperWidthPx override when mm not driving.
+    paperWidthPx: c.paperWidthPx != null && c.paperWidthPx !== '' && c.paperWidthMm == null
+      ? c.paperWidthPx
+      : (fromMm != null ? fromMm : c.paperWidthPx),
+  };
+
+  let rasterMaxHeightPx = 0;
+  if (c.rasterMaxHeightPx != null && c.rasterMaxHeightPx !== '') {
+    const h = parseInt(String(c.rasterMaxHeightPx), 10);
+    if (!Number.isNaN(h) && h > 0) rasterMaxHeightPx = h;
+  }
+
+  let rasterThreshold = DEFAULT_RASTER_THRESHOLD;
+  if (c.rasterThreshold != null && c.rasterThreshold !== '') {
+    const t = parseInt(String(c.rasterThreshold), 10);
+    if (!Number.isNaN(t)) rasterThreshold = Math.max(0, Math.min(255, t));
+  }
+
+  const renderOptions =
+    c.renderOptions && typeof c.renderOptions === 'object' && !Array.isArray(c.renderOptions)
+      ? { ...c.renderOptions }
+      : {};
+
   return {
     bottomMargin: num(c.bottomMargin, DEFAULTS.bottomMargin),
     topMargin: num(c.topMargin, DEFAULTS.topMargin),
@@ -227,7 +269,12 @@ function normalizeConfig(c = {}) {
       : String(n(c.currencySymbol, DEFAULTS.currencySymbol) || '$'),
     headerSections: normalizeSections(c.headerSections),
     footerSections: normalizeSections(c.footerSections),
-    paperWidthPx: resolvePaperWidthPx(c),
+    paperWidthMm,
+    paperWidthPx: resolvePaperWidthPx(cfgForWidth),
+    printMode: resolvePrintMode(c.printMode),
+    rasterThreshold,
+    rasterMaxHeightPx,
+    renderOptions,
     showInclusivePrices: Boolean(c.showInclusivePrices),
     decimal_place: c.decimal_place,
     labels: c.labels && typeof c.labels === 'object' ? c.labels : {},
@@ -278,6 +325,11 @@ function resolvePaperWidthPx(config) {
   if (fromEnv != null && String(fromEnv).trim()) {
     const n = parseInt(String(fromEnv).trim(), 10);
     if (!Number.isNaN(n) && n >= 8) return n;
+  }
+  if (cfg.paperWidthMm != null && cfg.paperWidthMm !== '') {
+    const { paperWidthMmToPx } = require('./print-mode');
+    const fromMm = paperWidthMmToPx(cfg.paperWidthMm);
+    if (fromMm != null) return fromMm;
   }
   if (cfg.paperWidthPx != null && cfg.paperWidthPx !== '') {
     const n = parseInt(cfg.paperWidthPx, 10);
@@ -1426,6 +1478,8 @@ module.exports = {
   resolvePaperWidthPx,
   resolveLogoOffsetX,
   writeBitmapD24,
+  mergeEffectiveConfig: (...args) => require('./print-mode').mergeEffectiveConfig(...args),
+  resolvePrintMode: (...args) => require('./print-mode').resolvePrintMode(...args),
   PRINTER_WIDTH,
   MAX_IMAGE_WIDTH_PX,
   PAPER_IMAGE_WIDTH_PX,

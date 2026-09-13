@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { RecordId, StringRecordId } = require('surrealdb');
-const { applyOperation, normalizeSurrealContent, withoutRecordId } = require('./sync-store');
+const { applyOperation, normalizeSurrealContent, withoutRecordId, toRecord } = require('./sync-store');
 
 function isRecordId(value) {
   return value instanceof RecordId || value instanceof StringRecordId;
@@ -99,6 +99,20 @@ test('normalizes datetime fields recursively without mutating source content', (
   assert.ok(normalized.nested.selected_at instanceof Date);
   assert.equal(source.created_at, '2026-09-06T14:56:33.847Z');
   assert.equal(normalizeSurrealContent('unchanged'), 'unchanged');
+});
+
+test('toRecord uses RecordId so dashed nanoid keys do not hang Surreal WS', () => {
+  const dashed = toRecord('order_payment', 'order_payment:-JWZvbRUc7qcNceATPzuK');
+  assert.ok(dashed instanceof RecordId);
+  assert.equal(String(dashed), 'order_payment:⟨-JWZvbRUc7qcNceATPzuK⟩');
+
+  const plain = toRecord('order', 'order:r115d3f6299d5483bacb1f7d48dfae694');
+  assert.ok(plain instanceof RecordId);
+  assert.equal(String(plain), 'order:r115d3f6299d5483bacb1f7d48dfae694');
+
+  const bare = toRecord('order_payment', '-JWZvbRUc7qcNceATPzuK');
+  assert.ok(bare instanceof RecordId);
+  assert.equal(String(bare), 'order_payment:⟨-JWZvbRUc7qcNceATPzuK⟩');
 });
 
 test('toSurrealContent coerces declared order aggregate links and preserves modifiers', () => {

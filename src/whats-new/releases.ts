@@ -7,6 +7,25 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-13',
+    title: 'Sync hang recovery',
+    items: [
+      'Offline sync no longer hangs forever on a stuck push — requests time out, outbox pushes in small batches, and the toolbar shows the error so you can retry.',
+      'Gateway push applies are serialized on one Surreal connection so aborted retries cannot pile up and falsely reject every op after ~20 seconds.',
+      'Payment (and other) record ids that start with "-" no longer hang Surreal WebSocket upserts — gateway now binds RecordId with proper ⟨⟩ escaping.',
+    ],
+  },
+  {
+    date: '2026-09-12',
+    title: 'Text and raster print modes',
+    items: [
+      'Manage → Print settings now includes print mode (Text ESC/POS or Raster image), paper width (58/80 mm), and raster options per ticket type — including Refund Print.',
+      'Raster mode renders the full ticket as a bit-image so layout, logos, and QR codes stay consistent across printer brands.',
+      'Manage → Printers can optionally override print mode and paper width per device; empty means inherit the print-type settings.',
+      'The print server uses a pluggable engine registry so future modes can be added without changing the dispatch path.',
+    ],
+  },
+  {
     date: '2026-09-12',
     title: 'Installable offline app shell (PWA)',
     items: [

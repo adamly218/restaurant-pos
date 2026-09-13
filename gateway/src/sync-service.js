@@ -5,6 +5,18 @@ const { rows, first, ensureTerminal, applyOperation, toRecord } = require('./syn
 const PROTOCOL_VERSION = 1;
 const SCHEMA_VERSION = 1;
 
+/** Serialize pushes on the shared Surreal WS — overlapping applies stall each other. */
+let pushChain = Promise.resolve();
+function withPushLock(fn) {
+  const run = pushChain.then(fn, fn);
+  // Keep the chain alive even if this push fails.
+  pushChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 const SNAPSHOT_TABLES = [
   'order_type',
   'category',
@@ -317,44 +329,55 @@ async function push(db, body) {
   const accepted = [];
   const conflicts = [];
   let lastSeq = 0;
-  for (const op of operations) {
-    const sequence = Number(op.sequence ?? 0);
-    if (sequence <= lastSeq) {
-      conflicts.push({
-        operationId: op.operationId,
-        code: 'SEQUENCE_GAP',
-        message: 'Sequences must be strictly increasing',
-      });
-      continue;
-    }
-    lastSeq = sequence;
-    const result = await applyOperation(db, op, terminalId, body.scopeId || 'default');
-    if (result.status === 'accepted') {
-      accepted.push(op.operationId);
-    } else {
-      conflicts.push({
-        operationId: op.operationId,
-        code: result.code || 'CONFLICT',
-        message: result.message || 'Conflict',
-      });
-      await db.query(
-        `CREATE sync_conflict SET
-          operation_id = $operationId,
-          terminal_id = $terminalId,
-          code = $code,
-          message = $message,
-          created_at = time::now()`,
-        {
+  // One shared Surreal WS client: never overlap pushes or aborted retries pile
+  // up queries and every apply looks like a ~20s failure.
+  return withPushLock(async () => {
+    for (const op of operations) {
+      const sequence = Number(op.sequence ?? 0);
+      if (sequence <= lastSeq) {
+        conflicts.push({
           operationId: op.operationId,
-          terminalId,
-          code: result.code,
-          message: result.message,
-        },
-      );
+          code: 'SEQUENCE_GAP',
+          message: 'Sequences must be strictly increasing',
+        });
+        continue;
+      }
+      lastSeq = sequence;
+      const started = Date.now();
+      const result = await applyOperation(db, op, terminalId, body.scopeId || 'default');
+      const elapsed = Date.now() - started;
+      if (elapsed >= 2000) {
+        console.warn(
+          `[sync/push] slow apply ${elapsed}ms type=${op.operationType || op.type} id=${op.operationId}`,
+        );
+      }
+      if (result.status === 'accepted') {
+        accepted.push(op.operationId);
+      } else {
+        conflicts.push({
+          operationId: op.operationId,
+          code: result.code || 'CONFLICT',
+          message: result.message || 'Conflict',
+        });
+        await db.query(
+          `CREATE sync_conflict SET
+            operation_id = $operationId,
+            terminal_id = $terminalId,
+            code = $code,
+            message = $message,
+            created_at = time::now()`,
+          {
+            operationId: op.operationId,
+            terminalId,
+            code: result.code,
+            message: result.message,
+          },
+        );
+      }
     }
-  }
 
-  return { ok: true, protocolVersion: PROTOCOL_VERSION, accepted, conflicts };
+    return { ok: true, protocolVersion: PROTOCOL_VERSION, accepted, conflicts };
+  });
 }
 
 async function pull(db, query) {

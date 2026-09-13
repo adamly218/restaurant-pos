@@ -112,7 +112,9 @@
     "discardOp": "Verwerpen",
     "conflictOrder": "Bestelling {{id}}",
     "conflictFailed": "{{count}} wijziging(en) hebben de server na meerdere pogingen niet bereikt",
-    "synced": "Gesynchroniseerd"
+    "synced": "Gesynchroniseerd",
+    "syncFailed": "Synchronisatie mislukt: {{message}}",
+    "syncFailedGeneric": "Synchronisatie mislukt — tik om opnieuw te proberen"
   },
   "lock": {
     "lockedBy": "Vergrendeld door {{name}}",

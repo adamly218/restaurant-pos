@@ -16,7 +16,7 @@ Printer records store connection details used across receipt, kitchen, and repor
 
 ### Print settings
 
-Print settings control templates and options for temp bills, final receipts, kitchen tickets, summaries, and delivery slips.
+Print settings control templates and options for temp bills, final receipts, kitchen tickets, summaries, delivery slips, and refunds.
 
 1. Open the Print settings tab.
 2. Edit each print type (Temp, Final, Kitchen, Summary, Delivery).
@@ -39,6 +39,8 @@ Print settings control templates and options for temp bills, final receipts, kit
 - **Type** — Receipt, kitchen, or label driver profile.
 - **IP address / port** — Network ESC/POS connection.
 - **VID / PID** — USB vendor/product IDs for direct-attached printers.
+- **Print mode override** — Optional `text` / `raster` for this device only.
+- **Paper width override** — Optional 58 / 80 mm for this device only.
 
 ![Printer form.](images/en/admin-printing-printer-form.png)
 
@@ -46,20 +48,28 @@ Print settings control templates and options for temp bills, final receipts, kit
 
 ### Print setting form
 
-Each print job type (temp bill, final receipt, kitchen, summary, delivery) has its own template.
+Each print job type (temp bill, final receipt, kitchen, summary, delivery, refund) has its own template.
 
 1. Open Print settings tab and pick a job type.
-2. Configure logo, header/footer sections, VAT block, and margins.
-3. Toggle line columns shown on receipts.
-4. Save — the next print uses the updated layout.
+2. Choose **Print mode** (Text ESC/POS or Raster image) and **Paper width** (58 mm or 80 mm).
+3. Configure logo, header/footer sections, VAT block, and margins.
+4. Toggle line columns shown on receipts.
+5. Save — the next print uses the updated layout and engine.
 
 **Fields**
 
+- **Print mode** — Text (fast ESC/POS commands) or Raster (full ticket as a bit-image for consistent layout across brands).
+- **Paper width** — 58 mm (384 dots) or 80 mm (576 dots); used for raster and image centering.
+- **Raster threshold / max height** — Optional mono cutoff and chunk height when mode is Raster.
 - **Show logo** — Includes uploaded logo on the ticket.
 - **Header / footer sections** — Rich text or image blocks above and below the body.
 - **VAT name / number** — Tax registration block on guest receipts.
 - **Margins** — Top, bottom, left, right spacing in printer dots.
 - **Item columns** — Toggle number, name, qty, price, and line total columns.
+
+**Printer overrides**
+
+On Manage → Printers, optional **Print mode override** and **Paper width override** override the print-type settings for that device only. Leave empty to inherit Print settings.
 
 ![Print template editor.](images/en/admin-printing-print-setting-form.png)
 

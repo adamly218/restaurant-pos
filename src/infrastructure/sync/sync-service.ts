@@ -277,34 +277,53 @@ export class TerminalSyncService {
       const pending = backoffUntil ? [] : await posStore.getPendingOutbox();
       const operations = pending
         .map((row) => row.operation)
-        .filter((op): op is NonNullable<typeof op> => !!op);
+        .filter((op): op is NonNullable<typeof op> => !!op)
+        .sort((a, b) => Number(a.sequence ?? 0) - Number(b.sequence ?? 0));
 
+      // Push in small batches so a hung Surreal write cannot stall all 40+ ops,
+      // and the toolbar can show remaining count between batches.
+      const PUSH_BATCH_SIZE = 5;
       if (operations.length > 0) {
-        let result: Awaited<ReturnType<typeof pushOperations>>;
-        try {
-          result = await pushOperations({
-            terminalId: identity.terminalId,
-            operations,
+        setSyncStatus({ phase: 'syncing', pendingCount: operations.length });
+        for (let offset = 0; offset < operations.length; offset += PUSH_BATCH_SIZE) {
+          const batch = operations.slice(offset, offset + PUSH_BATCH_SIZE);
+          let result: Awaited<ReturnType<typeof pushOperations>>;
+          try {
+            result = await pushOperations({
+              terminalId: identity.terminalId,
+              operations: batch,
+            });
+          } catch (error) {
+            // Transport / timeout: only this batch is unconfirmed.
+            const message = error instanceof Error ? error.message : String(error);
+            await posStore.markOutboxPushFailed(
+              batch.map((op) => op.operationId),
+              message,
+            );
+            throw error;
+          }
+          if (result.accepted?.length) {
+            for (const operationId of result.accepted) clearConflictAutoRetry(operationId);
+            await posStore.markOutboxAccepted(result.accepted);
+          }
+          for (const conflict of result.conflicts ?? []) {
+            // Stale APPLY_TIMEOUT rows from the old gateway guard must stay retryable.
+            if (conflict.code === 'APPLY_TIMEOUT' || conflict.code === 'APPLY_FAILED') {
+              await posStore.markOutboxPushFailed([conflict.operationId], conflict.message);
+              continue;
+            }
+            await posStore.markOutboxConflict(
+              conflict.operationId,
+              conflict.code,
+              conflict.message,
+            );
+          }
+          const remaining = Math.max(0, operations.length - offset - batch.length);
+          setSyncStatus({
+            phase: 'syncing',
+            pendingCount: remaining,
+            lastError: null,
           });
-        } catch (error) {
-          // Transport failure: nothing was applied; back off and try later.
-          const message = error instanceof Error ? error.message : String(error);
-          await posStore.markOutboxPushFailed(
-            operations.map((op) => op.operationId),
-            message,
-          );
-          throw error;
-        }
-        if (result.accepted?.length) {
-          for (const operationId of result.accepted) clearConflictAutoRetry(operationId);
-          await posStore.markOutboxAccepted(result.accepted);
-        }
-        for (const conflict of result.conflicts ?? []) {
-          await posStore.markOutboxConflict(
-            conflict.operationId,
-            conflict.code,
-            conflict.message,
-          );
         }
       }
 

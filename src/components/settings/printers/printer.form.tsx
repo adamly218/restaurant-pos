@@ -34,6 +34,14 @@ const validationSchema = yup.object({
   vid: yup.string().optional(),
   pid: yup.string().optional(),
   path: yup.string().optional(),
+  print_mode: yup.object({
+    label: yup.string(),
+    value: yup.string()
+  }).nullable().optional(),
+  paper_width_mm: yup.object({
+    label: yup.string(),
+    value: yup.string()
+  }).nullable().optional(),
 });
 
 export const PrinterForm = ({
@@ -51,6 +59,10 @@ export const PrinterForm = ({
 
   useEffect(() => {
     if(data){
+      const modeVal = data.print_mode ? String(data.print_mode) : '';
+      const widthVal = data.paper_width_mm != null && data.paper_width_mm !== ''
+        ? String(data.paper_width_mm)
+        : '';
       reset({
         ...data,
         name: data.name,
@@ -60,17 +72,30 @@ export const PrinterForm = ({
         type: data.type ? {
           label: data.type,
           value: data.type
-        } : null
+        } : null,
+        print_mode: modeVal
+          ? { label: modeVal === 'raster' ? t('forms.printModeRaster') : t('forms.printModeText'), value: modeVal }
+          : null,
+        paper_width_mm: widthVal
+          ? {
+              label: widthVal === '58' ? t('forms.paperWidth58') : t('forms.paperWidth80'),
+              value: widthVal,
+            }
+          : null,
       });
     }
-  }, [data]);
+  }, [data, reset, t]);
 
   const db = useDB();
 
   const onSubmit = async (values: any) => {
     const vals = {
       ...values,
-      type: values?.type ? values.type.value : null
+      type: values?.type ? values.type.value : null,
+      print_mode: values?.print_mode?.value ? values.print_mode.value : null,
+      paper_width_mm: values?.paper_width_mm?.value
+        ? Number(values.paper_width_mm.value)
+        : null,
     };
 
     try {
@@ -220,6 +245,51 @@ export const PrinterForm = ({
                 </div>
               </div>
             )}
+
+            <div className="flex-1">
+              <label htmlFor="print_mode">{t('forms.printerPrintMode')}</label>
+              <Controller
+                render={({field}) => (
+                  <div>
+                    <ReactSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      isClearable
+                      placeholder={t('forms.usePrintSettings')}
+                      options={[
+                        { label: t('forms.printModeText'), value: 'text' },
+                        { label: t('forms.printModeRaster'), value: 'raster' },
+                      ]}
+                    />
+                    <p className="text-xs text-muted mt-1">{t('forms.printerPrintModeHint')}</p>
+                  </div>
+                )}
+                name="print_mode"
+                control={control}
+              />
+            </div>
+            <div className="flex-1">
+              <label htmlFor="paper_width_mm">{t('forms.printerPaperWidth')}</label>
+              <Controller
+                render={({field}) => (
+                  <div>
+                    <ReactSelect
+                      value={field.value}
+                      onChange={field.onChange}
+                      isClearable
+                      placeholder={t('forms.usePrintSettings')}
+                      options={[
+                        { label: t('forms.paperWidth58'), value: '58' },
+                        { label: t('forms.paperWidth80'), value: '80' },
+                      ]}
+                    />
+                    <p className="text-xs text-muted mt-1">{t('forms.printerPaperWidthHint')}</p>
+                  </div>
+                )}
+                name="paper_width_mm"
+                control={control}
+              />
+            </div>
           </div>
           <div>
             <Button type="submit" variant="primary">{t('common:actions.save')}</Button>

@@ -112,7 +112,9 @@
     "discardOp": "Verwerfen",
     "conflictOrder": "Bestellung {{id}}",
     "conflictFailed": "{{count}} Änderung(en) haben den Server nach mehreren Versuchen nicht erreicht",
-    "synced": "Synchronisiert"
+    "synced": "Synchronisiert",
+    "syncFailed": "Sync fehlgeschlagen: {{message}}",
+    "syncFailedGeneric": "Sync fehlgeschlagen — tippen zum erneuten Versuch"
   },
   "lock": {
     "lockedBy": "Gesperrt von {{name}}",
