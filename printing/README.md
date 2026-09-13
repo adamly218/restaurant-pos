@@ -249,6 +249,10 @@ Use this to check layout and content before printing.
   "printers": [ ... ],
   "data": { "printType": "temp|summary|kitchen|delivery|final|refund|deletion|table|pulse", ... },
   "config": {
+    "printMode": "text",
+    "paperWidthMm": 80,
+    "rasterThreshold": 180,
+    "rasterMaxHeightPx": null,
     "bottomMargin": "1",
     "companyName": "Your Co",
     "leftMargin": "1",
@@ -267,11 +271,22 @@ Use this to check layout and content before printing.
 }
 ```
 
+**Print engines** (`config.printMode`):
+
+| Mode | Behavior |
+|------|----------|
+| `text` (default) | Classic ESC/POS builders (fastest) |
+| `raster` | Full ticket rendered as a monochrome bit-image (consistent across brands) |
+
+`paperWidthMm` is `58` (384 dots) or `80` (576 dots). Per-printer overrides: `print_mode`, `paper_width_mm` on each printers[] entry (wins over config).
+
+Unknown `printMode` values fall back to `text`. New engines register in `lib/engines/`.
+
 **Printers** (one or more):
 ```json
 [
   { "type": "usb" },
-  { "type": "usb", "vid": 0x04b8, "pid": 0x0e28 },
+  { "type": "usb", "vid": 0x04b8, "pid": 0x0e28, "print_mode": "raster", "paper_width_mm": 58 },
   { "type": "serial", "path": "/dev/ttyUSB0", "baudRate": 9600 },
   { "type": "network", "ip": "192.168.1.100", "port": 9100 },
   { "type": "bluetooth", "address": "01:23:45:67:89:AB", "channel": 1 }

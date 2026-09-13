@@ -11,4 +11,8 @@ export interface Printer extends ID, Name, Priority{
   deleted_at?: DateTime
   vid?: string
   pid?: string
+  /** Optional override of print-type printMode (`text` | `raster`). Empty/null = inherit. */
+  print_mode?: string | null
+  /** Optional override of paper width in mm (`58` | `80`). Empty/null = inherit. */
+  paper_width_mm?: number | null
 }

@@ -112,7 +112,9 @@
     "discardOp": "تجاهل",
     "conflictOrder": "الطلب {{id}}",
     "conflictFailed": "لم يتمكن {{count}} تغيير(ات) من الوصول إلى الخادم بعد عدة محاولات",
-    "synced": "متزامن"
+    "synced": "متزامن",
+    "syncFailed": "فشلت المزامنة: {{message}}",
+    "syncFailedGeneric": "فشلت المزامنة — اضغط لإعادة المحاولة"
   },
   "lock": {
     "lockedBy": "مقفل بواسطة {{name}}",

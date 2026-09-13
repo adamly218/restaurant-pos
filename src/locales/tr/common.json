@@ -112,7 +112,9 @@
     "discardOp": "Vazgeç",
     "conflictOrder": "Sipariş {{id}}",
     "conflictFailed": "{{count}} değişiklik birkaç denemeden sonra sunucuya ulaşamadı",
-    "synced": "Senkronize"
+    "synced": "Senkronize",
+    "syncFailed": "Senkronizasyon başarısız: {{message}}",
+    "syncFailedGeneric": "Senkronizasyon başarısız — yeniden denemek için dokunun"
   },
   "lock": {
     "lockedBy": "{{name}} tarafından kilitlendi",

@@ -8,6 +8,7 @@ import {Controller, useForm} from "react-hook-form";
 import {Input} from "@/components/common/input/input.tsx";
 import {Button} from "@/components/common/input/button.tsx";
 import {Switch} from "@/components/common/input/switch.tsx";
+import {ReactSelect} from "@/components/common/input/custom.react.select.tsx";
 import {useEffect, useState, useMemo} from "react";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faTimes} from "@fortawesome/free-solid-svg-icons";
@@ -15,13 +16,13 @@ import {detectMimeType, toArrayBuffer} from "@/utils/files.ts";
 import {ReceiptSectionEditor} from "@/components/settings/prints/receipt-section.editor.tsx";
 import {ReceiptSection} from "@/api/model/receipt-section.ts";
 
-interface Props {
-  open: boolean
-  onClose: () => void;
-  data?: Setting
-}
+type SelectOption = { label: string; value: string };
 
 type PrintFormValues = {
+  printMode?: SelectOption | string
+  paperWidthMm?: SelectOption | number | string
+  rasterThreshold?: number
+  rasterMaxHeightPx?: number | string
   showLogo?: boolean
   logo?: ArrayBuffer | null
   logoOffsetX?: number
@@ -39,6 +40,25 @@ type PrintFormValues = {
   showItemQuantity?: boolean
   showItemPrice?: boolean
   showItemTotal?: boolean
+}
+
+function toSelectOption(value: unknown, options: SelectOption[]): SelectOption {
+  const raw = typeof value === 'object' && value != null && 'value' in (value as object)
+    ? String((value as SelectOption).value)
+    : String(value ?? '');
+  return options.find((o) => o.value === raw) ?? options[0];
+}
+
+function selectValue(v: SelectOption | string | number | undefined, fallback: string): string {
+  if (v == null || v === '') return fallback;
+  if (typeof v === 'object' && 'value' in v) return String(v.value);
+  return String(v);
+}
+
+interface Props {
+  open: boolean
+  onClose: () => void;
+  data?: Setting
 }
 
 function normalizeSectionsFromDb(sections: unknown): ReceiptSection[] {
@@ -83,7 +103,20 @@ export const PrintForm = ({
   const [logoRemoved, setLogoRemoved] = useState(false);
 
   const db = useDB();
-  const {handleSubmit, control, reset, setValue} = useForm<PrintFormValues>();
+  const {handleSubmit, control, reset, setValue, watch} = useForm<PrintFormValues>();
+  const watchedPrintMode = watch('printMode');
+
+  const printModeOptions: SelectOption[] = useMemo(() => [
+    { label: t('forms.printModeText'), value: 'text' },
+    { label: t('forms.printModeRaster'), value: 'raster' },
+  ], [t]);
+
+  const paperWidthOptions: SelectOption[] = useMemo(() => [
+    { label: t('forms.paperWidth58'), value: '58' },
+    { label: t('forms.paperWidth80'), value: '80' },
+  ], [t]);
+
+  const isRasterMode = selectValue(watchedPrintMode, 'text') === 'raster';
 
   const existingLogoUrl = useMemo(() => {
     if (!data?.values?.logo) return null;
@@ -105,6 +138,12 @@ export const PrintForm = ({
     if(data?.values){
       reset({
         ...data.values,
+        printMode: toSelectOption(data.values.printMode ?? 'text', printModeOptions),
+        paperWidthMm: toSelectOption(data.values.paperWidthMm ?? 80, paperWidthOptions),
+        rasterThreshold: data.values.rasterThreshold != null ? Number(data.values.rasterThreshold) : 180,
+        rasterMaxHeightPx: data.values.rasterMaxHeightPx != null && data.values.rasterMaxHeightPx !== ''
+          ? Number(data.values.rasterMaxHeightPx)
+          : '',
         logo: null,
         headerSections: normalizeSectionsFromDb(data.values.headerSections),
         footerSections: normalizeSectionsFromDb(data.values.footerSections),
@@ -113,7 +152,7 @@ export const PrintForm = ({
       setLogoArrayBuffer(data?.values?.logo || null);
       setLogoRemoved(false);
     }
-  }, [data?.values, reset]);
+  }, [data?.values, reset, printModeOptions, paperWidthOptions]);
 
   useEffect(() => {
     return () => {
@@ -174,7 +213,20 @@ export const PrintForm = ({
   }
 
   const onSubmit = async (values: PrintFormValues) => {
-    const vals = {...values};
+    const maxHRaw = values.rasterMaxHeightPx;
+    const maxH = maxHRaw === '' || maxHRaw == null ? null : Number(maxHRaw);
+    const vals: Record<string, unknown> = {
+      ...values,
+      printMode: selectValue(values.printMode, 'text'),
+      paperWidthMm: Number(selectValue(values.paperWidthMm, '80')),
+      rasterThreshold: values.rasterThreshold != null && values.rasterThreshold !== ('' as unknown)
+        ? Number(values.rasterThreshold)
+        : 180,
+      rasterMaxHeightPx: maxH != null && !Number.isNaN(maxH) && maxH > 0 ? maxH : null,
+      renderOptions: (data?.values?.renderOptions && typeof data.values.renderOptions === 'object')
+        ? data.values.renderOptions
+        : {},
+    };
 
     if (logoRemoved) {
       vals.logo = null;
@@ -223,6 +275,88 @@ export const PrintForm = ({
       >
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="flex gap-5 flex-col mb-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="block mb-1">{t('forms.printMode')}</label>
+                <Controller
+                  name="printMode"
+                  control={control}
+                  render={({field}) => (
+                    <div>
+                      <ReactSelect
+                        value={field.value as SelectOption}
+                        onChange={field.onChange}
+                        options={printModeOptions}
+                      />
+                      <p className="text-xs text-muted mt-1">{t('forms.printModeHint')}</p>
+                    </div>
+                  )}
+                />
+              </div>
+              <div>
+                <label className="block mb-1">{t('forms.paperWidthMm')}</label>
+                <Controller
+                  name="paperWidthMm"
+                  control={control}
+                  render={({field}) => (
+                    <div>
+                      <ReactSelect
+                        value={field.value as SelectOption}
+                        onChange={field.onChange}
+                        options={paperWidthOptions}
+                      />
+                      <p className="text-xs text-muted mt-1">{t('forms.paperWidthMmHint')}</p>
+                    </div>
+                  )}
+                />
+              </div>
+            </div>
+
+            {isRasterMode && (
+              <div className="grid md:grid-cols-2 gap-3">
+                <div>
+                  <Controller
+                    name="rasterThreshold"
+                    control={control}
+                    render={({field}) => (
+                      <div>
+                        <Input
+                          label={t('forms.rasterThreshold')}
+                          type="number"
+                          value={field.value ?? 180}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            field.onChange(raw === '' ? 180 : Number(raw));
+                          }}
+                        />
+                        <p className="text-xs text-muted mt-1">{t('forms.rasterThresholdHint')}</p>
+                      </div>
+                    )}
+                  />
+                </div>
+                <div>
+                  <Controller
+                    name="rasterMaxHeightPx"
+                    control={control}
+                    render={({field}) => (
+                      <div>
+                        <Input
+                          label={t('forms.rasterMaxHeightPx')}
+                          type="number"
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            field.onChange(raw === '' ? '' : Number(raw));
+                          }}
+                        />
+                        <p className="text-xs text-muted mt-1">{t('forms.rasterMaxHeightPxHint')}</p>
+                      </div>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 gap-3">
               <div className="flex items-end">
                 <Controller

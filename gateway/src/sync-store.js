@@ -163,9 +163,20 @@ function toRecord(table, id) {
   if (isRecordLike(id)) return id;
   if (id && typeof id === 'object' && 'id' in id) return toRecord(table, id.id);
   const raw = String(id ?? '');
-  // Same semantics as the app's `toRecordId`: a "table:id" string is parsed by
-  // Surreal itself so numeric / escaped ids survive intact.
-  if (raw.includes(':')) return new StringRecordId(raw);
+  // Prefer RecordId(table, key) over StringRecordId("table:key").
+  // StringRecordId("order_payment:-abc") hangs the Surreal JS WebSocket for
+  // keys that start with "-" (nanoid); RecordId emits order_payment:⟨-abc⟩.
+  if (raw.includes(':')) {
+    const idx = raw.indexOf(':');
+    const tb = raw.slice(0, idx) || table;
+    let key = raw.slice(idx + 1);
+    // Unwrap an already-escaped key so we do not double-wrap ⟨…⟩.
+    if (key.startsWith('⟨') && key.endsWith('⟩')) {
+      key = key.slice(1, -1);
+    }
+    if (tb && key !== '') return new RecordId(tb, key);
+    return new StringRecordId(raw);
+  }
   return new RecordId(table, raw);
 }
 
@@ -207,6 +218,10 @@ function toSurrealRecord(table, content) {
   for (const [field, target] of Object.entries(links)) {
     if (!(field in out)) continue;
     const value = out[field];
+    if (value === undefined) {
+      delete out[field];
+      continue;
+    }
     if (Array.isArray(target)) {
       if (!Array.isArray(value)) continue;
       out[field] = value

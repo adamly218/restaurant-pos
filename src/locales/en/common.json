@@ -112,7 +112,9 @@
     "discardOp": "Discard",
     "conflictOrder": "Order {{id}}",
     "conflictFailed": "{{count}} change(s) could not reach the server after several attempts",
-    "synced": "Synced"
+    "synced": "Synced",
+    "syncFailed": "Sync failed: {{message}}",
+    "syncFailedGeneric": "Sync failed — tap to retry"
   },
   "lock": {
     "lockedBy": "Locked by {{name}}",

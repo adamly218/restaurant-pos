@@ -1073,7 +1073,8 @@ table th {
           linear-gradient(to bottom, rgba(0,0,0,0.1) 1px, transparent 1px);
 }
 .tag{
-  @apply bg-neutral-300/30 p-1 rounded-lg px-2 shadow shadow-neutral-400 text-xs font-bold hover:bg-neutral-900 hover:text-warning hover:scale-125;
+  @apply bg-muted/20 text-foreground p-1 rounded-lg px-2 shadow-sm text-xs font-bold
+    hover:bg-neutral-300 hover:text-primary hover:scale-125;
 }
 .kitchen-order-modifier-group{
   &:before{

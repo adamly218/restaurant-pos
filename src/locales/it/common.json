@@ -112,7 +112,9 @@
     "discardOp": "Scarta",
     "conflictOrder": "Ordine {{id}}",
     "conflictFailed": "{{count}} modifica/e non hanno raggiunto il server dopo diversi tentativi",
-    "synced": "Sincronizzato"
+    "synced": "Sincronizzato",
+    "syncFailed": "Sincronizzazione non riuscita: {{message}}",
+    "syncFailedGeneric": "Sincronizzazione non riuscita — tocca per riprovare"
   },
   "lock": {
     "lockedBy": "Bloccato da {{name}}",

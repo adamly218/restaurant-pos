@@ -14,32 +14,71 @@ const gatewayBase = () => {
   return 'http://127.0.0.1:3142';
 };
 
+/** Default HTTP timeout — prevents sync UI from hanging forever. */
+const SYNC_FETCH_TIMEOUT_MS = 45_000;
+/** Per-batch push timeout (5 ops). Long enough for real Surreal writes, short enough to recover UI. */
+const SYNC_PUSH_TIMEOUT_MS = 90_000;
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const name = (error as { name?: string }).name;
+  return name === 'AbortError';
+}
+
 async function syncFetch<T>(
   path: string,
-  init?: RequestInit,
+  init?: RequestInit & { timeoutMs?: number },
 ): Promise<T> {
   const token = getSessionToken();
-  const response = await fetch(`${gatewayBase()}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.ok === false) {
-    if (response.status === 401) {
-      // Sync always uses the POS session JWT — treat 401 as hard session death.
-      invalidateGatewaySession();
+  const timeoutMs = init?.timeoutMs ?? SYNC_FETCH_TIMEOUT_MS;
+  const { timeoutMs: _omit, ...fetchInit } = init ?? {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Prefer caller signal if present, but always honor our timeout.
+  if (fetchInit.signal) {
+    const outer = fetchInit.signal;
+    if (outer.aborted) controller.abort();
+    else {
+      outer.addEventListener('abort', () => controller.abort(), { once: true });
     }
-    const error = new Error(body?.error || `Sync request failed (${response.status})`);
-    (error as any).status = response.status;
-    (error as any).code = body?.code;
-    (error as any).body = body;
-    throw error;
   }
-  return body as T;
+
+  const timedOutError = () => {
+    const timedOut = new Error(`Sync request timed out after ${timeoutMs}ms (${path})`);
+    (timedOut as any).code = 'SYNC_TIMEOUT';
+    (timedOut as any).status = 408;
+    return timedOut;
+  };
+
+  try {
+    const response = await fetch(`${gatewayBase()}${path}`, {
+      ...fetchInit,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(fetchInit.headers ?? {}),
+      },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body?.ok === false) {
+      if (response.status === 401) {
+        // Sync always uses the POS session JWT — treat 401 as hard session death.
+        invalidateGatewaySession();
+      }
+      const error = new Error(body?.error || `Sync request failed (${response.status})`);
+      (error as any).status = response.status;
+      (error as any).code = body?.code;
+      (error as any).body = body;
+      throw error;
+    }
+    return body as T;
+  } catch (error) {
+    if (isAbortError(error)) throw timedOutError();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function handshake(input: {
@@ -79,6 +118,7 @@ export async function fetchSnapshotPage(input: {
     resumeToken: string | null;
   }>('/sync/snapshot', {
     method: 'POST',
+    timeoutMs: 120_000,
     body: JSON.stringify({
       terminalId: input.terminalId,
       limit: input.limit ?? 200,
@@ -120,6 +160,7 @@ export async function pushOperations(input: {
     conflicts: Array<{ operationId: string; code: string; message: string }>;
   }>('/sync/push', {
     method: 'POST',
+    timeoutMs: SYNC_PUSH_TIMEOUT_MS,
     body: JSON.stringify({
       terminalId: input.terminalId,
       protocolVersion: POS_SYNC_PROTOCOL_VERSION,

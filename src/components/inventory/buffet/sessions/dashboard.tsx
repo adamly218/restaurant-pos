@@ -103,9 +103,9 @@ export const BuffetSessionDashboard = ({sessionId, onBack}: Props) => {
           </p>
         </div>
         <span className={classNames("tag text-sm", {
-          "bg-info-100 text-info-800": session.status === "in_progress",
-          "bg-success-100 text-success-800": session.status === "closed",
-          "bg-surface": !["in_progress", "closed"].includes(session.status),
+          "bg-info/15 text-info": session.status === "in_progress",
+          "bg-success/15 text-success": session.status === "closed",
+          "bg-surface text-foreground": !["in_progress", "closed"].includes(session.status),
         })}>
           {t(`buffet.statuses.${session.status}`)}
         </span>
