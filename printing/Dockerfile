@@ -6,7 +6,8 @@ FROM node:20-alpine
 RUN apk add --no-cache \
   eudev-libs \
   build-base \
-  cairo-dev pango-dev jpeg-dev giflib-dev
+  cairo-dev pango-dev jpeg-dev giflib-dev \
+  fontconfig ttf-dejavu font-noto font-noto-arabic
 
 WORKDIR /app
 

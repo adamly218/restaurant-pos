@@ -18,7 +18,8 @@
     "escpos-network": "^3.0.0-alpha.5",
     "express": "^4.22.2",
     "jose": "^5.9.6",
-    "canvas": "^3.2.3"
+    "canvas": "^3.2.3",
+    "dejavu-fonts-ttf": "^2.37.3"
   },
   "devDependencies": {
     "patch-package": "^8.0.1"

@@ -82,6 +82,80 @@ test('resolvePaperWidthPx reads env override', () => {
   }
 });
 
+test('raster metrics scale font to paper width like ESC/POS Font A', () => {
+  const { getRasterMetrics } = require('./raster-metrics');
+  const m58 = getRasterMetrics(384);
+  const m80 = getRasterMetrics(576);
+  assert.ok(m58.normalFontPx >= 14, `58mm font too small: ${m58.normalFontPx}`);
+  assert.ok(m80.normalFontPx >= 22, `80mm font too small: ${m80.normalFontPx}`);
+  assert.ok(m80.normalFontPx > m58.normalFontPx);
+  assert.equal(m80.lineHeightNormal, Math.round(m80.lineHeightLarge / 2));
+});
+
+test('raster fonts render readable text without system Courier New', async (t) => {
+  let canvas;
+  try {
+    canvas = require('canvas');
+  } catch (e) {
+    t.skip('canvas native module not available');
+    return;
+  }
+
+  const prev = process.env.FONTCONFIG_FILE;
+  process.env.FONTCONFIG_FILE = '/dev/null';
+
+  try {
+    const { getRasterFonts } = require('./raster-fonts');
+    const { createCanvas } = canvas;
+    const { normal } = getRasterFonts();
+    const c = createCanvas(200, 32);
+    const ctx = c.getContext('2d');
+    ctx.font = normal;
+    ctx.fillStyle = '#000000';
+    ctx.fillText('Receipt 123', 8, 16);
+    const d = ctx.getImageData(8, 4, 120, 16).data;
+    let ink = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] < 128) ink += 1;
+    }
+    assert.ok(ink > 80, `expected glyph ink pixels, got ${ink}`);
+  } finally {
+    if (prev === undefined) delete process.env.FONTCONFIG_FILE;
+    else process.env.FONTCONFIG_FILE = prev;
+  }
+});
+
+test('printEscposImage accepts image/png buffers from canvas', async (t) => {
+  let canvas;
+  try {
+    canvas = require('canvas');
+  } catch (e) {
+    t.skip('canvas native module not available');
+    return;
+  }
+
+  const escpos = require('escpos');
+  const { printEscposImage } = require('./receipt-helpers');
+  const { createCanvas } = canvas;
+  const srcCanvas = createCanvas(64, 32);
+  const ctx = srcCanvas.getContext('2d');
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, 64, 32);
+  const src = srcCanvas.toBuffer('image/png');
+
+  const mockDevice = { open: (cb) => cb(null), write: () => {}, close: () => {} };
+  const printer = new escpos.Printer(mockDevice, { encoding: 'UTF-8', width: 42 });
+  const ok = await printEscposImage(printer, src, {
+    mime: 'image/png',
+    skipPrepare: true,
+    forceMono: true,
+    paperWidth: 64,
+    hAlign: 'left',
+    maxWidth: 64,
+  });
+  assert.equal(ok, true);
+});
+
 test('prepareImageForPrint outputs full paper width when canvas is available', async (t) => {
   let canvas;
   try {
