@@ -96,5 +96,11 @@
     "syncSuccess": "Aanwezigheidsgebeurtenissen gesynchroniseerd",
     "pushSuccess": "Medewerkers naar apparaten gepusht",
     "actionFailed": "Hikvision-actie mislukt"
+  },
+  "listField": {
+    "item": "Apparaat",
+    "add": "{{item}} toevoegen",
+    "remove": "Verwijderen",
+    "empty": "Nog geen {{item}}en. Klik op Toevoegen."
   }
 }

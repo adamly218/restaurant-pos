@@ -88,5 +88,11 @@
     "syncSuccess": "Événements de présence synchronisés",
     "pushSuccess": "Employés poussés vers les appareils",
     "actionFailed": "Échec de l'action Hikvision"
+  },
+  "listField": {
+    "item": "Appareil",
+    "add": "Ajouter {{item}}",
+    "remove": "Supprimer",
+    "empty": "Aucun {{item}} pour le moment. Cliquez sur Ajouter."
   }
 }

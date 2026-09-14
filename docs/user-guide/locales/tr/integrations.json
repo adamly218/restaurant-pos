@@ -96,5 +96,11 @@
     "syncSuccess": "Devam olayları senkronize edildi",
     "pushSuccess": "Çalışanlar cihazlara gönderildi",
     "actionFailed": "Hikvision eylemi başarısız"
+  },
+  "listField": {
+    "item": "Cihaz",
+    "add": "{{item}} ekle",
+    "remove": "Kaldır",
+    "empty": "Henüz {{item}} yok. Ekle’ye tıklayın."
   }
 }

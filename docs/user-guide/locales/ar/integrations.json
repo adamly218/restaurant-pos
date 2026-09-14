@@ -96,5 +96,11 @@
     "syncSuccess": "تمت مزامنة أحداث الحضور",
     "pushSuccess": "تم دفع الموظفين إلى الأجهزة",
     "actionFailed": "فشل إجراء Hikvision"
+  },
+  "listField": {
+    "item": "جهاز",
+    "add": "إضافة {{item}}",
+    "remove": "إزالة",
+    "empty": "لا يوجد {{item}} بعد. انقر إضافة لإعداد واحد."
   }
 }

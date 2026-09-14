@@ -88,5 +88,11 @@
     "syncSuccess": "Anwesenheitsereignisse synchronisiert",
     "pushSuccess": "Mitarbeiter an Geräte gesendet",
     "actionFailed": "Hikvision-Aktion fehlgeschlagen"
+  },
+  "listField": {
+    "item": "Gerät",
+    "add": "{{item}} hinzufügen",
+    "remove": "Entfernen",
+    "empty": "Noch keine {{item}}e. Klicken Sie auf Hinzufügen."
   }
 }

@@ -88,5 +88,11 @@
     "syncSuccess": "Eventos de asistencia sincronizados",
     "pushSuccess": "Empleados enviados a los dispositivos",
     "actionFailed": "La acción de Hikvision falló"
+  },
+  "listField": {
+    "item": "Dispositivo",
+    "add": "Agregar {{item}}",
+    "remove": "Eliminar",
+    "empty": "Aún no hay {{item}}s. Haga clic en Agregar."
   }
 }

@@ -174,7 +174,7 @@ Bundled hardware provider under `src/integrations/providers/hardware/hikvision/`
 
 | Setting | Purpose |
 |---------|---------|
-| Devices (JSON) | Terminals: `id`, `name`, `host`, `port`, `useHttps`, `username`, `password`, `enabled` |
+| Devices | Terminals with name, host, port, HTTPS, username, password, enabled (add/remove cards) |
 | Poll interval | AcsEvent polling while the provider is enabled (min 30s) |
 | Event lookback | Overlap window when fetching events |
 | Auto-import punches | Write `time_entry` rows with `source: device` |

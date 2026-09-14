@@ -12,24 +12,9 @@ Connect Hikvision access / attendance terminals to POSR Labor so punches become 
 ## Setup
 
 1. Open **Integrations** and enable **Hikvision Attendance**.
-2. Configuration → **Devices (JSON)** — one or more terminals:
+2. Configuration → **Devices** — add one or more terminals with name, host/IP, port, HTTPS, username, and password.
 
-```json
-[
-  {
-    "id": "device-1",
-    "name": "Main entrance",
-    "host": "192.168.1.50",
-    "port": 80,
-    "useHttps": false,
-    "username": "admin",
-    "password": "****",
-    "enabled": true
-  }
-]
-```
-
-For cloud POS with a local device, set `host` to the public IP/domain and the forwarded port (and `useHttps` if applicable).
+For cloud POS with a local device, set **Host / IP** to the public IP/domain and the forwarded **Port** (enable **Use HTTPS** if applicable).
 
 3. Adjust poll interval, lookback, and auto-import / auto-sync switches.
 4. Save, then use **Test connection**, **Sync events now**, and **Push all employees**.

@@ -96,5 +96,11 @@
     "syncSuccess": "Eventos de presença sincronizados",
     "pushSuccess": "Funcionários enviados aos dispositivos",
     "actionFailed": "Ação Hikvision falhou"
+  },
+  "listField": {
+    "item": "Dispositivo",
+    "add": "Adicionar {{item}}",
+    "remove": "Remover",
+    "empty": "Nenhum {{item}} ainda. Clique em Adicionar."
   }
 }

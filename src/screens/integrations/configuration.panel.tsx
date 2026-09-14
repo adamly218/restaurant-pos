@@ -279,7 +279,10 @@ export const ConfigurationPanel = ({
               return current === field.dependsOn.equals;
             })
             .map((field) => (
-            <div key={field.key}>
+            <div
+              key={field.key}
+              className={field.type === 'list' || field.type === 'json' ? 'md:col-span-2' : undefined}
+            >
               {field.type !== 'switch' && field.type !== 'checkbox' && (
                 <label className="block text-sm font-medium mb-1">{field.label}</label>
               )}
