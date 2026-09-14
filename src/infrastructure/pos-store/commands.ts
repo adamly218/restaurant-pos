@@ -3,6 +3,7 @@ import { ensureTerminalIdentity, nextOperationIdentity, recordId } from './ident
 import { assertCashierOwner, canStealOrder } from './ownership.ts';
 import { isPosStoreEffectivelyConnected } from './connectivity.ts';
 import { reconcileOrderItemLinks } from './catalog.ts';
+import { shouldMaterializeNewOrder } from './order-validity.ts';
 import {
   POS_SCHEMA_VERSION,
   POS_SYNC_PROTOCOL_VERSION,
@@ -99,6 +100,19 @@ export async function ensureLocalOrder(source: {
 
   const existing = await db.orders.get(key);
   if (existing) return existing;
+
+  const draftStatus = String(source.order?.status ?? 'In Progress');
+  if (
+    !shouldMaterializeNewOrder({
+      status: draftStatus,
+      invoice_number: source.order?.invoice_number,
+    })
+  ) {
+    throw new PosStoreError(
+      'INVALID_ORDER',
+      'Cannot import order without an invoice number',
+    );
+  }
 
   const rawItems = Array.isArray(source.items)
     ? source.items

@@ -1,4 +1,9 @@
 import { getPosStoreDatabase } from './db.ts';
+import {
+  isGhostOperationalOrder,
+  preserveOrderHeaderOnMerge,
+  shouldMaterializeNewOrder,
+} from './order-validity.ts';
 import type { CatalogRecord, OrderItemRecord, OrderRecord } from './types.ts';
 
 export async function upsertCatalogRecords(
@@ -438,9 +443,38 @@ export async function searchCustomers(query: string, limit = 20): Promise<any[]>
 }
 
 export async function getOpenOrders(): Promise<OrderRecord[]> {
-  // Full reconcile is reserved for sync — not every UI open-order refresh.
+  await pruneGhostOperationalOrders();
   const db = getPosStoreDatabase();
-  return db.orders.where('status').equals('In Progress').sortBy('created_at');
+  const rows = await db.orders.where('status').equals('In Progress').sortBy('created_at');
+  return rows.filter((order) => !isGhostOperationalOrder(order));
+}
+
+/**
+ * Remove open/pending Dexie rows that never received an invoice number — sync
+ * shells from sparse MERGE replay or id-only imports. Safe: real checks always
+ * allocate an invoice at CREATE.
+ */
+export async function pruneGhostOperationalOrders(): Promise<number> {
+  const db = getPosStoreDatabase();
+  let removed = 0;
+
+  await db.transaction('rw', [db.orders, db.orderItems], async () => {
+    const ghosts = (await db.orders.toArray()).filter(isGhostOperationalOrder);
+    for (const order of ghosts) {
+      const items = await db.orderItems.where('order').equals(String(order.id)).toArray();
+      if (items.length) {
+        await db.orderItems.bulkDelete(items.map((row) => row.id));
+      }
+      await db.orders.delete(order.id);
+      removed += 1;
+    }
+  });
+
+  if (removed > 0 && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('posr-posstore-write'));
+    window.dispatchEvent(new CustomEvent('posr-operational-orders-updated'));
+  }
+  return removed;
 }
 
 /**
@@ -499,6 +533,7 @@ export async function reconcileOrderItemLinks(orderId?: string): Promise<number>
     },
   );
 
+  await pruneGhostOperationalOrders();
   return pruned;
 }
 
@@ -854,7 +889,7 @@ export async function getOpenTablelessOrdersHydrated(): Promise<HydratedOrder[]>
   const rows = await db.orders
     .where('status')
     .equals('In Progress')
-    .filter((order) => !order.deleted_at && isTablelessOrder(order))
+    .filter((order) => !order.deleted_at && isTablelessOrder(order) && !isGhostOperationalOrder(order))
     .sortBy('created_at');
   return hydrateOrders(rows);
 }
@@ -871,7 +906,8 @@ export async function getDeliveryOrdersHydrated(
       (order) =>
         !order.deleted_at &&
         statusSet.has(String(order.status)) &&
-        hasDeliveryPayload(order),
+        hasDeliveryPayload(order) &&
+        !isGhostOperationalOrder(order),
     )
     .toArray();
   rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
@@ -973,6 +1009,7 @@ export async function getRecentOrdersHydrated(options: {
   const rows = await db.orders
     .filter((order) => {
       if (order.deleted_at) return false;
+      if (isGhostOperationalOrder(order)) return false;
       if (order.status === 'In Progress') return true;
       const createdAt = new Date(String(order.created_at)).getTime();
       return createdAt >= since && createdAt < until;
@@ -1018,7 +1055,13 @@ export async function applyRemoteOrderProjection(payload: {
       const id = String(payload.order.id ?? '');
       if (!id) return;
       const existing = await db.orders.get(id);
-      const patch = { ...payload.order } as OrderRecord;
+      const patch = preserveOrderHeaderOnMerge(
+        existing,
+        { ...payload.order } as Partial<OrderRecord>,
+      ) as OrderRecord;
+      if (!existing && !shouldMaterializeNewOrder(patch)) {
+        return;
+      }
       // MERGE events often omit `items` (append-only sync). Never clobber the
       // local items array with [] — union in children from this event instead.
       const patchHasItems = Array.isArray(payload.order.items);

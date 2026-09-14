@@ -160,6 +160,7 @@ export class TerminalSyncService {
     const cursor = await posStore.getSyncCursor();
     if (!cursor.hydrated) {
       await hydrateSnapshot(identity.terminalId);
+      await posStore.reconcileOrderItemLinks();
     }
     await this.synchronize();
   }
@@ -179,6 +180,7 @@ export class TerminalSyncService {
     const identity = await posStore.getTerminalIdentity();
     await handshake({ terminalId: identity.terminalId });
     await hydrateSnapshot(identity.terminalId);
+    await posStore.reconcileOrderItemLinks();
     await this.synchronize({ force: true });
   }
 

@@ -232,6 +232,43 @@ describe('order item link reconcile', () => {
     expect(after?.items).toContain(items[0].id);
   });
 
+  it('does not create a ghost order from a sparse MERGE on a missing id', async () => {
+    resetPosStoreDatabaseForTests();
+    await posStore.initialize();
+
+    await posStore.applyRemoteOrderProjection({
+      order: {
+        id: 'order:ghost-shell',
+        order_type: 'order_type:o1',
+        updated_at: new Date().toISOString(),
+      },
+    });
+
+    const db = (await import('@/infrastructure/pos-store/db.ts')).getPosStoreDatabase();
+    expect(await db.orders.get('order:ghost-shell')).toBeUndefined();
+  });
+
+  it('prunes open orders that never received an invoice number', async () => {
+    resetPosStoreDatabaseForTests();
+    await posStore.initialize();
+    const db = (await import('@/infrastructure/pos-store/db.ts')).getPosStoreDatabase();
+
+    await db.orders.put({
+      id: 'order:rb5e1f77333ac439196dc0c25dc155763',
+      status: 'In Progress',
+      order_type: 'order_type:o1',
+      items: [],
+      created_at: new Date().toISOString(),
+      owner_terminal_id: 'terminal-x',
+      owner_heartbeat_at: new Date().toISOString(),
+      server_version: 1,
+    } as any);
+
+    const removed = await posStore.pruneGhostOperationalOrders();
+    expect(removed).toBe(1);
+    expect(await db.orders.get('order:rb5e1f77333ac439196dc0c25dc155763')).toBeUndefined();
+  });
+
   it('does not wipe items when applying a sparse MERGE projection', async () => {
     resetPosStoreDatabaseForTests();
     await posStore.initialize();

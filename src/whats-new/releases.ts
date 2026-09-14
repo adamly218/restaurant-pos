@@ -7,6 +7,14 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-14',
+    title: 'Orders card hydrate and ghost checks',
+    items: [
+      'Opening Orders no longer shows a Surreal “subtraction” error when hydrating order cards — order ids are bound as query parameters instead of pasted into SurrealQL.',
+      'Ghost open checks (In Progress without an invoice number) are no longer created from sparse sync data and are pruned from the local cache on reload and sync.',
+    ],
+  },
+  {
     date: '2026-09-13',
     title: 'Sync hang recovery',
     items: [

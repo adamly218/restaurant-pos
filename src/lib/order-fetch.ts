@@ -4,7 +4,8 @@ import {
   ORDER_FETCHES,
   parseOrderQueryResult,
 } from "@/api/model/order.ts";
-import {toRecordId} from "@/lib/utils.ts";
+import {Tables} from "@/api/db/tables.ts";
+import {qualifyRecordId, toQueryRecordId} from "@/api/reports/shared/records.ts";
 import {posStore} from "@/infrastructure/pos-store/pos-store.ts";
 
 type DbQuery = {
@@ -37,12 +38,21 @@ const releaseCardHydrateSlot = () => {
   }
 };
 
+/** Dexie / Surreal share the same `order:…` key form. */
+const qualifiedOrderId = (orderId: unknown): string =>
+  qualifyRecordId(orderId, Tables.orders);
+
 export async function fetchOrderById(
   db: DbQuery,
   orderId: unknown,
   fetches: string[],
   options?: {limitConcurrency?: boolean},
 ): Promise<Order | undefined> {
+  const qualified = qualifiedOrderId(orderId);
+  if (!qualified) {
+    return undefined;
+  }
+
   const limitConcurrency = options?.limitConcurrency === true;
   if (limitConcurrency) {
     await acquireCardHydrateSlot();
@@ -50,7 +60,8 @@ export async function fetchOrderById(
 
   try {
     const result = await db.query(
-      `SELECT * FROM ONLY ${toRecordId(orderId)} FETCH ${fetches.join(", ")}`,
+      `SELECT * FROM ONLY $orderId FETCH ${fetches.join(", ")}`,
+      {orderId: toQueryRecordId(qualified, Tables.orders)},
     );
     return parseOrderQueryResult(result);
   } finally {
@@ -72,12 +83,17 @@ async function fetchOrderLocalFirst(
   fetches: string[],
   options?: {limitConcurrency?: boolean},
 ): Promise<Order | undefined> {
-  const local = await posStore.getOrderHydrated(String(orderId)).catch(() => null);
+  const key = qualifiedOrderId(orderId);
+  if (!key) {
+    return undefined;
+  }
+
+  const local = await posStore.getOrderHydrated(key).catch(() => null);
   if (local) {
     return local as unknown as Order;
   }
   try {
-    return await fetchOrderById(db, orderId, fetches, options);
+    return await fetchOrderById(db, key, fetches, options);
   } catch (error) {
     console.warn('Remote order fetch failed (offline?)', error);
     return undefined;

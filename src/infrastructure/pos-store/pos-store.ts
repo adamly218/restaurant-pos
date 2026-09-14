@@ -289,6 +289,10 @@ export class PosStore {
     return catalog.reconcileOrderItemLinks(orderId);
   }
 
+  pruneGhostOperationalOrders() {
+    return catalog.pruneGhostOperationalOrders();
+  }
+
   /** Open orders in the legacy FETCH shape (items.item, user, table, order_type…). */
   getOpenOrdersHydrated() {
     return catalog.getOpenOrdersHydrated();
