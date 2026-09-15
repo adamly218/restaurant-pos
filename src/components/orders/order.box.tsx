@@ -428,7 +428,7 @@ export const OrderBox = ({
                     ></Button>
                   </span>
                   <Button
-                    variant="warning"
+                    variant="primary"
                     filled
                     size="lg"
                     className="flex-1"
