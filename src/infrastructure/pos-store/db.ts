@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import { nanoid } from 'nanoid';
 import type {
   CatalogRecord,
   ChildRecord,
@@ -121,6 +122,6 @@ export function resetPosStoreDatabaseForTests(name?: string): PosStoreDatabase {
   if (dbSingleton) {
     void dbSingleton.close();
   }
-  dbSingleton = new PosStoreDatabase(name ?? `${POS_STORE_DB_NAME}-test-${crypto.randomUUID()}`);
+  dbSingleton = new PosStoreDatabase(name ?? `${POS_STORE_DB_NAME}-test-${nanoid()}`);
   return dbSingleton;
 }

@@ -42,7 +42,7 @@ services:
     command: >
       start --user ${SURREAL_USER:?Set SURREAL_USER in .env} --pass ${SURREAL_PASS:?Set SURREAL_PASS in .env} surrealkv://database --bind 0.0.0.0:8000
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     volumes:
       # Host /database -> container /database (surrealkv://database resolves to ./database = /database)
       - ./database:/database

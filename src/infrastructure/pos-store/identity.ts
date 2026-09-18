@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid';
 import { getPosStoreDatabase } from './db.ts';
 import {
   POS_SCHEMA_VERSION,
@@ -6,7 +7,8 @@ import {
 } from './types.ts';
 
 function createId(): string {
-  return crypto.randomUUID();
+  // nanoid works in non-secure contexts; crypto.randomUUID does not (HTTP LAN/Docker).
+  return nanoid();
 }
 
 export function createTerminalId(): string {
