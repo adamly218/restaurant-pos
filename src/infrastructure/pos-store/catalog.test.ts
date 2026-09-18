@@ -142,6 +142,49 @@ describe('catalog hydration', () => {
     expect(catalog.coupons[0].code).toBe('SAVE10');
   });
 
+  it('projects only Settings→Menus selections into menus (empty = full catalog mode)', async () => {
+    resetPosStoreDatabaseForTests();
+    await upsertCatalogRecords('menu_item', [
+      { id: 'menu_item:d1', name: 'Soup', price: 5 },
+      { id: 'menu_item:d2', name: 'Salad', price: 4 },
+    ]);
+    await upsertCatalogRecords('menu_menu_item', [
+      { id: 'menu_menu_item:m1i1', menu_item: 'menu_item:d1', active: true },
+    ]);
+    await upsertCatalogRecords('menu', [
+      {
+        id: 'menu:lunch',
+        name: 'Lunch',
+        active: true,
+        items: ['menu_menu_item:m1i1'],
+      },
+      {
+        id: 'menu:dinner',
+        name: 'Dinner',
+        active: true,
+        items: [],
+      },
+    ]);
+
+    // No setting → menus must be [] (FOH shows full categories/dishes).
+    let catalog = await loadHydratedCatalog();
+    expect(catalog.menus).toEqual([]);
+    expect(catalog.dishes).toHaveLength(2);
+
+    await upsertCatalogRecords('setting', [
+      {
+        id: 'setting:menus',
+        key: 'menus',
+        is_global: true,
+        values: ['menu:lunch'],
+      },
+    ]);
+    catalog = await loadHydratedCatalog();
+    expect(catalog.menus).toHaveLength(1);
+    expect(catalog.menus[0].id).toBe('menu:lunch');
+    expect(catalog.menus[0].items[0].menu_item.name).toBe('Soup');
+  });
+
   it('hydrates dish modifier groups and modifier dishes without FETCH', async () => {
     resetPosStoreDatabaseForTests();
     await upsertCatalogRecords('menu_item', [

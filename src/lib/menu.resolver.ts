@@ -174,6 +174,16 @@ export const resolveMenuAwareData = ({
     resolvedDishes.push(dish);
   });
 
+  // Active menus with empty/broken item joins must not blank the FOH.
+  if (resolvedDishes.length === 0) {
+    return {
+      hasActiveMenus: false,
+      activeMenus: [],
+      dishes: safeDishes,
+      categories: safeCategories
+    };
+  }
+
   return {
     hasActiveMenus: true,
     activeMenus,

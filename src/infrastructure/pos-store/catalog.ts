@@ -228,6 +228,29 @@ export async function loadHydratedCatalog(): Promise<{
       .filter((item: any) => item?.menu_item),
   }));
 
+  // Settings → Menus controls which timed menus are active in FOH.
+  // Empty selection must stay [] so resolveMenuAwareData shows the full catalog
+  // (projecting every menu row activates filter mode and can hide all items).
+  const menuSetting = settings.find(
+    (row) => String(row.key) === 'menus' && (row.is_global === true || row.is_global == null),
+  );
+  const selectedMenuIds = new Set(
+    (Array.isArray(menuSetting?.values) ? menuSetting.values : [])
+      .map((value: unknown) => {
+        if (value == null) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && value !== null && 'id' in value) {
+          return String((value as { id: unknown }).id ?? '');
+        }
+        return String(value);
+      })
+      .filter(Boolean),
+  );
+  const menusForSettings =
+    selectedMenuIds.size === 0
+      ? []
+      : hydratedMenus.filter((menu) => selectedMenuIds.has(String(menu.id)));
+
   const groupReferenceMap = byId(modifier_groups);
   const hydratedModifiers = modifiers.map((modifier) => ({
     ...modifier,
@@ -277,7 +300,7 @@ export async function loadHydratedCatalog(): Promise<{
     kitchens,
     payment_types,
     taxes,
-    menus: hydratedMenus,
+    menus: menusForSettings,
     modifier_groups: hydratedGroups,
     groups_dishes: hydratedGroupsDishes,
     workflows: [...workflowMap.values()],
