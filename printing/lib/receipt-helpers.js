@@ -762,6 +762,12 @@ function printPrintingTimestamp(printer, config) {
     // ignore
   }
   printCenteredText(printer, ts);
+  // Extra space after datetime so the last line clears the cutter (and tickets don't look cramped).
+  try {
+    if (typeof printer.feed === 'function') printer.feed(2);
+  } catch (e) {
+    // ignore
+  }
 }
 
 /**

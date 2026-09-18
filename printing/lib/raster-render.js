@@ -408,6 +408,7 @@ async function renderBillRaster(bill, config, opts) {
   paintFiscal(rc, o.qrcodes, o.qrcode);
   rc.feed(1);
   rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
 
   return rc.toPng();
 }
@@ -555,6 +556,7 @@ async function renderRefundRaster(data, config) {
   if (bottomFeed) rc.feed(bottomFeed);
   rc.feed(1);
   rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
   return rc.toPng();
 }
 
@@ -622,6 +624,7 @@ async function renderKitchenRaster(data, config) {
   if (bottomFeed) rc.feed(bottomFeed);
   rc.feed(1);
   rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
   return rc.toPng();
 }
 
@@ -712,6 +715,7 @@ async function renderSummaryRaster(data, config) {
   if (bottomFeed) rc.feed(bottomFeed);
   rc.feed(1);
   rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
   return rc.toPng();
 }
 
