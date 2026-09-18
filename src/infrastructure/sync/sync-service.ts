@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid';
 import { posStore } from '@/infrastructure/pos-store/pos-store.ts';
 import {
   applyRemoteEvent,
@@ -431,9 +432,10 @@ export class TerminalSyncService {
         if (available > NUMBER_REFILL_THRESHOLD) continue;
 
         const newPending = (): PendingNumberReservation => ({
+          // nanoid works on HTTP LAN/Docker; crypto.randomUUID does not.
           reservationId: dayScoped
-            ? `${terminalId}:${series}:${day}:block-${crypto.randomUUID()}`
-            : `${terminalId}:${series}:block-${crypto.randomUUID()}`,
+            ? `${terminalId}:${series}:${day}:block-${nanoid()}`
+            : `${terminalId}:${series}:block-${nanoid()}`,
           count: NUMBER_BLOCK_SIZE,
           ...(dayScoped ? { scopeId: day } : {}),
         });
