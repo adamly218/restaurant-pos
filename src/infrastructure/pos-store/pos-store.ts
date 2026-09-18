@@ -155,8 +155,8 @@ export class PosStore {
     return commands.releaseNumber(series, value);
   }
 
-  countReservedNumbers(series: NumberSeries) {
-    return commands.countReservedNumbers(series);
+  countReservedNumbers(series: NumberSeries, scopeId?: string) {
+    return commands.countReservedNumbers(series, scopeId);
   }
 
   getPendingNumberReservation(series: NumberSeries) {

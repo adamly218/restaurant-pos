@@ -15,6 +15,7 @@ export const RELEASES: ReleaseNotes[] = [
       'New orders allocate invoice numbers inside the create transaction, and failed split/merge flows release unused numbers back to the pool.',
       'Floor buttons, dishes, categories, order types, and tables on the POS follow priority (then name) again after catalog hydrate.',
       'Invoice numbers restart at 1 each business day (app timezone); receipt numbers follow the same day scope. Auto IDs stay global forever.',
+      'Existing same-day invoice pools are kept (not wiped) when they predate day-scoped reservations, and Reload cache always refills numbers even if another tab is syncing.',
     ],
   },
   {

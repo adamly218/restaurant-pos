@@ -840,6 +840,16 @@ describe('PosStore number reservation allocate + release', () => {
     expect(await posStore.consumeInvoiceNumber()).toBe(500);
   });
 
+  it('uses an unscoped same-day invoice pool instead of wiping it', async () => {
+    await posStore.discardStaleNumberReservations('invoice', '1999-01-01');
+    await posStore.storeNumberReservations('invoice', 40, 42);
+    const { order } = await posStore.createOrderWithItems({
+      items: [{ dishId: 'menu_item:d1', price: 5, quantity: 1 }],
+    });
+    expect(order.invoice_number).toBe(40);
+    expect(await posStore.countReservedNumbers('invoice', today())).toBe(2);
+  });
+
   it('discards yesterday invoice pool so a new day can restart at 1', async () => {
     // Wipe today's beforeEach pool, leave only a yesterday block.
     await posStore.discardStaleNumberReservations('invoice', '1999-01-01');

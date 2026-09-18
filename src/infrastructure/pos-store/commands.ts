@@ -537,11 +537,7 @@ export async function createOrderWithItems(input: CreateOrderInput): Promise<{
       let autoId = input.autoId;
       const invoiceDay = getBusinessDayUnixRange().day;
       if (invoiceNumber == null) {
-        const invoiceRows = await db.numberReservations.where({ series: 'invoice' }).toArray();
-        const stale = invoiceRows.filter((row) => row.scope_id !== invoiceDay);
-        if (stale.length) {
-          await db.numberReservations.bulkDelete(stale.map((row) => row.id));
-        }
+        await adoptOrDiscardInTx(db, 'invoice', invoiceDay);
         invoiceNumber = await consumeNumberInTx(db, 'invoice', invoiceDay);
       }
       if (autoId == null) {
@@ -943,6 +939,37 @@ export async function addItemsToOrder(
  * `auto_id` are ints, so there is deliberately no string fallback: when the
  * local pool is exhausted offline the caller must block the create with a toast.
  */
+function isCurrentNumberScope(
+  row: { scope_id?: string },
+  scopeId: string,
+): boolean {
+  const scope = row.scope_id;
+  // Pre-day-scope pools have no scope_id (or the old gateway 'default').
+  if (!scope || scope === 'default' || scope === 'global') return true;
+  return scope === scopeId;
+}
+
+async function adoptOrDiscardInTx(
+  db: ReturnType<typeof getPosStoreDatabase>,
+  series: NumberSeries,
+  scopeId: string,
+): Promise<number> {
+  const rows = await db.numberReservations.where({ series }).toArray();
+  const stale = rows.filter((row) => !isCurrentNumberScope(row, scopeId));
+  const adopt = rows.filter(
+    (row) => isCurrentNumberScope(row, scopeId) && row.scope_id !== scopeId,
+  );
+  if (stale.length) {
+    await db.numberReservations.bulkDelete(stale.map((row) => row.id));
+  }
+  if (adopt.length) {
+    await db.numberReservations.bulkPut(
+      adopt.map((row) => ({ ...row, scope_id: scopeId })),
+    );
+  }
+  return stale.length;
+}
+
 async function consumeNumberInTx(
   db: ReturnType<typeof getPosStoreDatabase>,
   series: NumberSeries,
@@ -952,7 +979,7 @@ async function consumeNumberInTx(
     .where({ series, status: 'reserved' })
     .sortBy('value');
   const first = scopeId
-    ? reserved.find((row) => row.scope_id === scopeId)
+    ? reserved.find((row) => isCurrentNumberScope(row, scopeId))
     : reserved[0];
   if (!first) {
     throw new PosStoreError(
@@ -962,6 +989,7 @@ async function consumeNumberInTx(
   }
   await db.numberReservations.put({
     ...first,
+    ...(scopeId ? { scope_id: scopeId } : {}),
     status: 'consumed',
     consumed_at: nowIso(),
   });
@@ -975,11 +1003,7 @@ export async function consumeNumber(series: NumberSeries): Promise<number> {
     : undefined;
   return db.transaction('rw', db.numberReservations, async () => {
     if (scopeId) {
-      const rows = await db.numberReservations.where({ series }).toArray();
-      const stale = rows.filter((row) => row.scope_id !== scopeId);
-      if (stale.length) {
-        await db.numberReservations.bulkDelete(stale.map((row) => row.id));
-      }
+      await adoptOrDiscardInTx(db, series, scopeId);
     }
     return consumeNumberInTx(db, series, scopeId);
   });
@@ -1008,9 +1032,18 @@ export async function releaseNumber(series: NumberSeries, value: number): Promis
   });
 }
 
-export async function countReservedNumbers(series: NumberSeries): Promise<number> {
+export async function countReservedNumbers(
+  series: NumberSeries,
+  scopeId?: string,
+): Promise<number> {
   const db = getPosStoreDatabase();
-  return db.numberReservations.where({ series, status: 'reserved' }).count();
+  if (!scopeId) {
+    return db.numberReservations.where({ series, status: 'reserved' }).count();
+  }
+  const reserved = await db.numberReservations
+    .where({ series, status: 'reserved' })
+    .toArray();
+  return reserved.filter((row) => isCurrentNumberScope(row, scopeId)).length;
 }
 
 export async function getPendingNumberReservation(
@@ -1047,7 +1080,8 @@ export async function setPendingNumberReservation(
 
 /**
  * Drop local invoice/receipt pool rows that belong to another business day so
- * numbers can restart at 1 without colliding with yesterday's Dexie ids.
+ * numbers can restart at 1. Legacy rows with no scope are adopted as today —
+ * deleting them on the same day is what emptied terminals after the day-scope deploy.
  */
 export async function discardStaleNumberReservations(
   series: NumberSeries,
@@ -1055,11 +1089,6 @@ export async function discardStaleNumberReservations(
 ): Promise<number> {
   const db = getPosStoreDatabase();
   return db.transaction('rw', db.numberReservations, async () => {
-    const rows = await db.numberReservations.where({ series }).toArray();
-    const stale = rows.filter((row) => row.scope_id !== scopeId);
-    if (stale.length) {
-      await db.numberReservations.bulkDelete(stale.map((row) => row.id));
-    }
-    return stale.length;
+    return adoptOrDiscardInTx(db, series, scopeId);
   });
 }
