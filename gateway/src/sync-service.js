@@ -222,11 +222,31 @@ async function snapshotPage(db, body) {
 }
 
 const SERIES_SEED_FIELD = { invoice: 'invoice_number', auto_id: 'auto_id' };
+/** Invoice (and receipt) counters reset per business day; auto_id stays global. */
+const DAY_SCOPED_SERIES = new Set(['invoice', 'receipt']);
 
-async function seedCounterValue(db, series) {
+async function seedCounterValue(db, series, dayRange) {
   const field = SERIES_SEED_FIELD[series];
   if (!field) return 0;
   try {
+    if (
+      DAY_SCOPED_SERIES.has(series) &&
+      dayRange &&
+      Number.isFinite(dayRange.startUnix) &&
+      Number.isFinite(dayRange.endUnix)
+    ) {
+      const row = first(
+        await db.query(
+          `SELECT math::max(${field}) AS max FROM order
+           WHERE time::unix(created_at) >= $startUnix
+             AND time::unix(created_at) < $endUnix
+           GROUP ALL`,
+          { startUnix: dayRange.startUnix, endUnix: dayRange.endUnix },
+        ),
+      );
+      const max = Number(row?.max);
+      return Number.isFinite(max) && max > 0 ? Math.floor(max) : 0;
+    }
     const row = first(
       await db.query(`SELECT math::max(${field}) AS max FROM order GROUP ALL`),
     );
@@ -237,58 +257,92 @@ async function seedCounterValue(db, series) {
   }
 }
 
-async function reserveNumberRange(db, body) {
-  const terminalId = String(body.terminalId || '');
-  const series = String(body.series || body.kind || 'invoice');
-  const count = Math.min(Math.max(Number(body.count || 1), 1), 1000);
-  const reservationId = String(body.reservationId || '');
-  if (!terminalId || !reservationId) {
-    const err = new Error('terminalId and reservationId are required');
-    err.status = 400;
-    throw err;
-  }
-
-  const existing = first(
-    await db.query(
-      `SELECT * FROM sync_number_reservation WHERE reservation_id = $reservationId LIMIT 1`,
-      { reservationId },
-    ),
-  );
-  if (existing) {
-    if (existing.series !== series || Number(existing.count) !== count) {
-      const err = new Error('Reservation id reused with different parameters');
-      err.status = 409;
+function counterRecordId(series, scopeId) {
+  if (DAY_SCOPED_SERIES.has(series)) {
+    const dayKey = String(scopeId || '').replace(/-/g, '');
+    if (!dayKey) {
+      const err = new Error('scopeId (business day) is required for invoice reservations');
+      err.status = 400;
       throw err;
     }
-    return {
-      ok: true,
-      start: Number(existing.start),
-      end: Number(existing.end),
-      reservationId,
-    };
+    return toRecord('sync_number_counter', `${series}_${dayKey}`);
   }
+  return toRecord('sync_number_counter', series);
+}
 
-  const scopeId = String(body.scopeId || 'default');
-  const counterId = toRecord('sync_number_counter', series);
-  let counter = first(await db.query(`SELECT * FROM $id`, { id: counterId }));
-  if (!counter) {
-    // Seed from existing orders so reserved ranges never collide with numbers
-    // handed out by the legacy Surreal counters.
-    const seed = await seedCounterValue(db, series);
-    await db.query(
-      `CREATE $id SET series = $series, scope_id = $scopeId, value = $seed, updated_at = time::now()`,
-      { id: counterId, series, scopeId, seed },
+async function reserveNumberRange(db, body) {
+  return withPushLock(async () => {
+    const terminalId = String(body.terminalId || '');
+    const series = String(body.series || body.kind || 'invoice');
+    const count = Math.min(Math.max(Number(body.count || 1), 1), 1000);
+    const reservationId = String(body.reservationId || '');
+    if (!terminalId || !reservationId) {
+      const err = new Error('terminalId and reservationId are required');
+      err.status = 400;
+      throw err;
+    }
+
+    const scopeId = DAY_SCOPED_SERIES.has(series)
+      ? String(body.scopeId || body.businessDay || '')
+      : 'global';
+    if (DAY_SCOPED_SERIES.has(series) && !scopeId) {
+      const err = new Error('scopeId (business day yyyy-MM-dd) is required for invoice reservations');
+      err.status = 400;
+      throw err;
+    }
+
+    const dayRange = DAY_SCOPED_SERIES.has(series)
+      ? {
+          startUnix: Number(body.dayStartUnix),
+          endUnix: Number(body.dayEndUnix),
+        }
+      : null;
+
+    const existing = first(
+      await db.query(
+        `SELECT * FROM sync_number_reservation WHERE reservation_id = $reservationId LIMIT 1`,
+        { reservationId },
+      ),
     );
-    counter = { value: seed };
-  }
-  const start = Number(counter.value || 0) + 1;
-  const end = start + count - 1;
-  await db.query(
-    `UPDATE $id SET value = $end, updated_at = time::now()`,
-    { id: counterId, end },
-  );
-  await db.query(
-    `CREATE sync_number_reservation SET
+    if (existing) {
+      if (
+        existing.series !== series ||
+        Number(existing.count) !== count ||
+        String(existing.scope_id || '') !== scopeId
+      ) {
+        const err = new Error('Reservation id reused with different parameters');
+        err.status = 409;
+        throw err;
+      }
+      return {
+        ok: true,
+        start: Number(existing.start),
+        end: Number(existing.end),
+        reservationId,
+        scopeId,
+      };
+    }
+
+    const counterId = counterRecordId(series, scopeId);
+    let counter = first(await db.query(`SELECT * FROM $id`, { id: counterId }));
+    if (!counter) {
+      // Day-scoped series seed from today's max so each business day starts at 1
+      // when there are no orders yet; auto_id seeds from the global max.
+      const seed = await seedCounterValue(db, series, dayRange);
+      await db.query(
+        `CREATE $id SET series = $series, scope_id = $scopeId, value = $seed, updated_at = time::now()`,
+        { id: counterId, series, scopeId, seed },
+      );
+      counter = { value: seed };
+    }
+    const start = Number(counter.value || 0) + 1;
+    const end = start + count - 1;
+    await db.query(
+      `UPDATE $id SET value = $end, updated_at = time::now()`,
+      { id: counterId, end },
+    );
+    await db.query(
+      `CREATE sync_number_reservation SET
       reservation_id = $reservationId,
       terminal_id = $terminalId,
       scope_id = $scopeId,
@@ -299,9 +353,10 @@ async function reserveNumberRange(db, body) {
       last_number = $end,
       count = $count,
       created_at = time::now()`,
-    { reservationId, terminalId, scopeId, series, start, end, count },
-  );
-  return { ok: true, start, end, reservationId };
+      { reservationId, terminalId, scopeId, series, start, end, count },
+    );
+    return { ok: true, start, end, reservationId, scopeId };
+  });
 }
 
 async function push(db, body) {

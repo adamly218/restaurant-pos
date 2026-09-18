@@ -123,6 +123,16 @@ const resolveMenuDish = (baseDish: Dish | undefined, menuItem: MenuMenuItem, men
   };
 };
 
+const sortByPriorityName = <T extends { priority?: number | null; name?: string | null }>(
+  a: T,
+  b: T,
+): number => {
+  const pa = Number(a?.priority ?? 0);
+  const pb = Number(b?.priority ?? 0);
+  if (pa !== pb) return pa - pb;
+  return String(a?.name ?? '').localeCompare(String(b?.name ?? ''));
+};
+
 const resolveMenuCategories = (categories: Category[], dishes: Dish[]): Category[] => {
   const categoryIds = new Set<string>();
   dishes.forEach((dish) => {
@@ -131,7 +141,9 @@ const resolveMenuCategories = (categories: Category[], dishes: Dish[]): Category
     });
   });
 
-  return (categories ?? []).filter((category) => categoryIds.has(category.id.toString()));
+  return (categories ?? [])
+    .filter((category) => categoryIds.has(category.id.toString()))
+    .sort(sortByPriorityName);
 };
 
 export const resolveMenuAwareData = ({
@@ -145,8 +157,8 @@ export const resolveMenuAwareData = ({
   menus: MenuCollection
   now?: DateInput
 }): ResolvedMenuData => {
-  const safeCategories = categories ?? [];
-  const safeDishes = dishes ?? [];
+  const safeCategories = [...(categories ?? [])].sort(sortByPriorityName);
+  const safeDishes = [...(dishes ?? [])].sort(sortByPriorityName);
   const normalizedMenus = normalizeMenus(menus);
   const activeMenus = normalizedMenus.filter((menu) => isMenuActiveNow(menu, now));
   if (activeMenus.length === 0) {
@@ -173,6 +185,7 @@ export const resolveMenuAwareData = ({
 
     resolvedDishes.push(dish);
   });
+  resolvedDishes.sort(sortByPriorityName);
 
   // Active menus with empty/broken item joins must not blank the FOH.
   if (resolvedDishes.length === 0) {

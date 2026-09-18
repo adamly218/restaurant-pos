@@ -6,6 +6,7 @@ import {
 } from '@/infrastructure/pos-store/projection.ts';
 import type { NumberSeries, SyncPhase } from '@/infrastructure/pos-store/types.ts';
 import { Tables } from '@/api/db/tables.ts';
+import { getBusinessDayUnixRange } from '@/lib/datetime.ts';
 import {
   fetchSnapshotPage,
   handshake,
@@ -19,6 +20,8 @@ import {
   conflictAutoRetryEligible,
   noteConflictAutoRetry,
 } from './conflict-auto-retry.ts';
+
+const DAY_SCOPED_NUMBER_SERIES = new Set<NumberSeries>(['invoice', 'receipt']);
 
 const SNAPSHOT_TABLES = [
   Tables.order_types,
@@ -401,20 +404,53 @@ export class TerminalSyncService {
   }
 
   private async refillNumbers(terminalId: string): Promise<void> {
+    const { day, startUnix, endUnix } = getBusinessDayUnixRange();
+
     for (const series of NUMBER_SERIES) {
       try {
+        const dayScoped = DAY_SCOPED_NUMBER_SERIES.has(series);
+        if (dayScoped) {
+          await posStore.discardStaleNumberReservations(series, day);
+          const pending = await posStore.getPendingNumberReservation(series);
+          if (pending && pending.scopeId !== day) {
+            await posStore.setPendingNumberReservation(series, null);
+          }
+        }
+
         const available = await posStore.countReservedNumbers(series);
         if (available > NUMBER_REFILL_THRESHOLD) continue;
-        const reservationId = `${terminalId}:${series}:block-${Date.now()}`;
+
+        let pending = await posStore.getPendingNumberReservation(series);
+        if (!pending || (dayScoped && pending.scopeId !== day)) {
+          pending = {
+            reservationId: dayScoped
+              ? `${terminalId}:${series}:${day}:block-${crypto.randomUUID()}`
+              : `${terminalId}:${series}:block-${crypto.randomUUID()}`,
+            count: NUMBER_BLOCK_SIZE,
+            ...(dayScoped ? { scopeId: day } : {}),
+          };
+          await posStore.setPendingNumberReservation(series, pending);
+        }
+
         const range = await reserveNumbers({
           terminalId,
           kind: series,
-          count: NUMBER_BLOCK_SIZE,
-          reservationId,
+          count: pending.count,
+          reservationId: pending.reservationId,
+          ...(dayScoped
+            ? { scopeId: day, dayStartUnix: startUnix, dayEndUnix: endUnix }
+            : {}),
         });
-        await posStore.storeNumberReservations(series, range.start, range.end);
+        await posStore.storeNumberReservations(
+          series,
+          range.start,
+          range.end,
+          dayScoped ? day : undefined,
+        );
+        await posStore.setPendingNumberReservation(series, null);
       } catch {
         // Best-effort while online; the local pool covers the outage window.
+        // Pending reservationId is kept so the next sync retries the same block.
       }
     }
   }

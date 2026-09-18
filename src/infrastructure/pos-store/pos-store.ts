@@ -51,6 +51,10 @@ export class PosStore {
   async clearLocalData(): Promise<void> {
     const db = getPosStoreDatabase();
     const identity = await db.identity.get('singleton');
+    // Keep reserved invoice/auto_id pools — clearing them while the gateway
+    // counter already advanced is the main cause of sudden +100/+200 jumps.
+    const priorCursor = await db.syncCursor.get('singleton');
+    const pendingNumberReservations = priorCursor?.pendingNumberReservations;
     const tables = [
       db.orders,
       db.orderItems,
@@ -73,7 +77,6 @@ export class PosStore {
       db.syncOutbox,
       db.syncCursor,
       db.syncConflicts,
-      db.numberReservations,
     ];
     await db.transaction('rw', [...tables, db.identity], async () => {
       await Promise.all(tables.map((table) => table.clear()));
@@ -85,6 +88,9 @@ export class PosStore {
         cursor: 0,
         hydrated: false,
         snapshotResumeToken: null,
+        ...(pendingNumberReservations
+          ? { pendingNumberReservations }
+          : {}),
       });
     });
     notifyWrite();
@@ -144,8 +150,28 @@ export class PosStore {
     return commands.consumeAutoId();
   }
 
+  /** Return a consumed number to the reserved pool (failed split/merge). */
+  releaseNumber(series: NumberSeries, value: number) {
+    return commands.releaseNumber(series, value);
+  }
+
   countReservedNumbers(series: NumberSeries) {
     return commands.countReservedNumbers(series);
+  }
+
+  getPendingNumberReservation(series: NumberSeries) {
+    return commands.getPendingNumberReservation(series);
+  }
+
+  setPendingNumberReservation(
+    series: NumberSeries,
+    pending: import('./types.ts').PendingNumberReservation | null,
+  ) {
+    return commands.setPendingNumberReservation(series, pending);
+  }
+
+  discardStaleNumberReservations(series: NumberSeries, scopeId: string) {
+    return commands.discardStaleNumberReservations(series, scopeId);
   }
 
   /** Local child rows (payments, taxes, discounts, …) for one order. */
@@ -628,6 +654,7 @@ export class PosStore {
     series: NumberSeries,
     start: number,
     end: number,
+    scopeId?: string,
   ): Promise<void> {
     const db = getPosStoreDatabase();
     const now = new Date().toISOString();
@@ -639,6 +666,7 @@ export class PosStore {
         value,
         status: 'reserved' as const,
         reserved_at: now,
+        ...(scopeId ? { scope_id: scopeId } : {}),
       });
     }
     await db.numberReservations.bulkPut(rows);

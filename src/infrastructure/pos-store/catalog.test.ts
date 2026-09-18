@@ -90,6 +90,42 @@ describe('catalog hydration', () => {
     expect(catalog.tables[0].floor.name).toBe('Main');
   });
 
+  it('sorts floors, dishes, categories, order types and tables by priority then name', async () => {
+    resetPosStoreDatabaseForTests();
+    await upsertCatalogRecords('floor', [
+      { id: 'floor:c', name: 'C', priority: 3 },
+      { id: 'floor:a', name: 'A', priority: 1 },
+      { id: 'floor:b', name: 'B', priority: 2 },
+    ]);
+    await upsertCatalogRecords('category', [
+      { id: 'category:c', name: 'C', priority: 3 },
+      { id: 'category:a', name: 'A', priority: 1 },
+      { id: 'category:b', name: 'B', priority: 2 },
+    ]);
+    await upsertCatalogRecords('order_type', [
+      { id: 'order_type:c', name: 'C', priority: 3 },
+      { id: 'order_type:a', name: 'A', priority: 1 },
+      { id: 'order_type:b', name: 'B', priority: 2 },
+    ]);
+    await upsertCatalogRecords('menu_item', [
+      { id: 'menu_item:c', name: 'C', price: 3, priority: 3 },
+      { id: 'menu_item:a', name: 'A', price: 1, priority: 1 },
+      { id: 'menu_item:b', name: 'B', price: 2, priority: 2 },
+    ]);
+    await upsertCatalogRecords('floor_table', [
+      { id: 'floor_table:c', name: 'C', number: '3', floor: 'floor:a', priority: 3 },
+      { id: 'floor_table:a', name: 'A', number: '1', floor: 'floor:a', priority: 1 },
+      { id: 'floor_table:b', name: 'B', number: '2', floor: 'floor:a', priority: 2 },
+    ]);
+
+    const catalog = await loadHydratedCatalog();
+    expect(catalog.floors.map((row: any) => row.name)).toEqual(['A', 'B', 'C']);
+    expect(catalog.dishes.map((row: any) => row.name)).toEqual(['A', 'B', 'C']);
+    expect(catalog.categories.map((row: any) => row.name)).toEqual(['A', 'B', 'C']);
+    expect(catalog.order_types.map((row: any) => row.name)).toEqual(['A', 'B', 'C']);
+    expect(catalog.tables.map((row: any) => row.name)).toEqual(['A', 'B', 'C']);
+  });
+
   it('hydrates payment types, extras, discounts, settings and redacts users', async () => {
     resetPosStoreDatabaseForTests();
     await upsertCatalogRecords('tax', [{ id: 'tax:vat', name: 'VAT', rate: 10, priority: 1 }]);

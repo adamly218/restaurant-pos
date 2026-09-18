@@ -235,14 +235,6 @@ export const Payment = () => {
         }).catch(() => undefined);
       }
 
-      let invoiceNumber: number = Number(state?.order?.order?.invoice_number ?? 1);
-      let autoId: number | undefined;
-      if (isNewOrder) {
-        // Int-only reserved ranges — no provisional strings (Surreal `int` fields).
-        invoiceNumber = await posStore.consumeInvoiceNumber();
-        autoId = await posStore.consumeAutoId().catch(() => undefined);
-      }
-
       let serviceCharge = 0;
       let serviceChargeAmount = 0;
       let serviceChargeType: string = DiscountType.Percent;
@@ -254,9 +246,9 @@ export const Payment = () => {
       }
 
       if (isNewOrder) {
+        // Allocate invoice/auto_id inside createOrderWithItems so a failed create
+        // cannot burn reserved numbers.
         const created = await posStore.createOrderWithItems({
-          invoiceNumber,
-          autoId,
           covers: parseInt(state?.persons) || 1,
           floorId: state?.floor?.id ? String(state.floor.id) : null,
           tableId: state?.table?.id ? String(state.table.id) : null,

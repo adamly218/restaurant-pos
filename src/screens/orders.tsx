@@ -332,40 +332,58 @@ export const Orders = () => {
       });
       setIsSaving(true);
 
-      // Local-first: merged order + item moves + source close + audit commit to
-      // Dexie, then drain via outbox.
-      const { merged } = await posStore.mergeOrders({
-        sourceIds: mergingOrders.map((order) => String(order.id)),
-        invoiceNumber: await posStore.consumeInvoiceNumber(),
-        autoId: await posStore.consumeAutoId(),
-        userId: String(app.user.id),
-        target: {
-          floor: selectedTable?.floor?.id ? String(selectedTable.floor.id) : null,
-          table: String(mergingTable),
-          covers: mergingOrders.reduce((prev, item) => prev + item.covers, 0) || 1,
-          order_type: mergingOrders[0].order_type?.id ? String(mergingOrders[0].order_type.id) : null,
-          user: mergingOrders[0].user?.id ? String(mergingOrders[0].user.id) : null,
-        },
-        seeds: mergingOrders.map((order) => ({ order, items: order.items })),
-      });
+      let invoiceNumber: number | undefined;
+      let autoId: number | undefined;
+      let committed = false;
+      try {
+        invoiceNumber = await posStore.consumeInvoiceNumber();
+        autoId = await posStore.consumeAutoId();
+        // Local-first: merged order + item moves + source close + audit commit to
+        // Dexie, then drain via outbox.
+        const { merged } = await posStore.mergeOrders({
+          sourceIds: mergingOrders.map((order) => String(order.id)),
+          invoiceNumber,
+          autoId,
+          userId: String(app.user.id),
+          target: {
+            floor: selectedTable?.floor?.id ? String(selectedTable.floor.id) : null,
+            table: String(mergingTable),
+            covers: mergingOrders.reduce((prev, item) => prev + item.covers, 0) || 1,
+            order_type: mergingOrders[0].order_type?.id ? String(mergingOrders[0].order_type.id) : null,
+            user: mergingOrders[0].user?.id ? String(mergingOrders[0].user.id) : null,
+          },
+          seeds: mergingOrders.map((order) => ({ order, items: order.items })),
+        });
+        committed = true;
 
-      postOrderTracking({
-        module: "orders.merge",
-        page: app?.page,
-        orderId: merged.id,
-        payload: {
-          source_orders: mergingOrders.map((item) => item.id.toString()),
-          table: mergingTable,
-        },
-        user: app?.user,
-      });
+        postOrderTracking({
+          module: "orders.merge",
+          page: app?.page,
+          orderId: merged.id,
+          payload: {
+            source_orders: mergingOrders.map((item) => item.id.toString()),
+            table: mergingTable,
+          },
+          user: app?.user,
+        });
 
-      toast.success(t('merge.success', {invoiceNumber: merged.invoice_number}));
+        toast.success(t('merge.success', {invoiceNumber: merged.invoice_number}));
 
-      // reset to default
-      setMerging(false);
-      setMergingTable(undefined);
-      setMergingOrders([]);
+        // reset to default
+        setMerging(false);
+        setMergingTable(undefined);
+        setMergingOrders([]);
+      } catch (innerError) {
+        if (!committed) {
+          await Promise.all([
+            invoiceNumber != null
+              ? posStore.releaseNumber('invoice', invoiceNumber)
+              : Promise.resolve(),
+            autoId != null ? posStore.releaseNumber('auto_id', autoId) : Promise.resolve(),
+          ]);
+        }
+        throw innerError;
+      }
 
     } catch (error) {
       console.error('Error creating merging orders:', error);

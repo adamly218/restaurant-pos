@@ -7,6 +7,17 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-18',
+    title: 'Invoice numbers and menu priority',
+    items: [
+      'Reload cache no longer discards reserved invoice and receipt number pools, which was a common cause of sudden +100/+200 jumps.',
+      'Number refill retries reuse the same reservation id so a timed-out gateway response cannot orphan a whole block; concurrent reserves are serialized on the gateway.',
+      'New orders allocate invoice numbers inside the create transaction, and failed split/merge flows release unused numbers back to the pool.',
+      'Floor buttons, dishes, categories, order types, and tables on the POS follow priority (then name) again after catalog hydrate.',
+      'Invoice numbers restart at 1 each business day (app timezone); receipt numbers follow the same day scope. Auto IDs stay global forever.',
+    ],
+  },
+  {
     date: '2026-09-14',
     title: 'Orders card hydrate and ghost checks',
     items: [

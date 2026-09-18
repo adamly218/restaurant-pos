@@ -132,12 +132,16 @@ export async function reserveNumbers(input: {
   kind: 'invoice' | 'receipt' | 'auto_id';
   count: number;
   reservationId: string;
+  scopeId?: string;
+  dayStartUnix?: number;
+  dayEndUnix?: number;
 }) {
   return syncFetch<{
     ok: boolean;
     start: number;
     end: number;
     reservationId: string;
+    scopeId?: string;
   }>('/sync/reserve-numbers', {
     method: 'POST',
     body: JSON.stringify({
@@ -145,6 +149,9 @@ export async function reserveNumbers(input: {
       series: input.kind,
       count: input.count,
       reservationId: input.reservationId,
+      scopeId: input.scopeId,
+      dayStartUnix: input.dayStartUnix,
+      dayEndUnix: input.dayEndUnix,
     }),
   });
 }

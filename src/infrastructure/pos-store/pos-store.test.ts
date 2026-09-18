@@ -7,6 +7,7 @@ import {
 } from '@/infrastructure/pos-store/index.ts';
 import { recordId } from '@/infrastructure/pos-store/identity.ts';
 import { canStealOrder, isOwnerHeartbeatStale } from '@/infrastructure/pos-store/ownership.ts';
+import { getBusinessDayUnixRange } from '@/lib/datetime.ts';
 
 describe('SurrealDB record IDs', () => {
   it('generates unquoted-safe record IDs', () => {
@@ -65,6 +66,7 @@ describe('PosStore create order + ownership', () => {
   it('rejects merge from a non-owner terminal while offline', async () => {
     resetPosStoreConnectivityForTests(false);
     const { order } = await posStore.createOrderWithItems({
+      invoiceNumber: 1,
       items: [{ dishId: 'menu_item:d', price: 5, quantity: 1 }],
     });
 
@@ -84,6 +86,7 @@ describe('PosStore create order + ownership', () => {
   it('auto-takes ownership on merge while online', async () => {
     resetPosStoreConnectivityForTests(true);
     const { order } = await posStore.createOrderWithItems({
+      invoiceNumber: 2,
       items: [{ dishId: 'menu_item:d', price: 5, quantity: 1 }],
     });
     const identity = await posStore.getTerminalIdentity();
@@ -101,6 +104,7 @@ describe('PosStore create order + ownership', () => {
 
   it('allows steal when owner heartbeat is stale', async () => {
     const { order } = await posStore.createOrderWithItems({
+      invoiceNumber: 3,
       items: [{ dishId: 'menu_item:d', price: 5, quantity: 1 }],
     });
     const db = (await import('@/infrastructure/pos-store/db.ts')).getPosStoreDatabase();
@@ -140,6 +144,7 @@ describe('PosStore create order + ownership', () => {
 
   it('completes kitchen stages without ownership', async () => {
     const { kitchens } = await posStore.createOrderWithItems({
+      invoiceNumber: 4,
       items: [
         {
           dishId: 'menu_item:d',
@@ -675,9 +680,14 @@ describe('PosStore clearLocalData (Reload cache)', () => {
     await posStore.initialize();
   });
 
-  it('keeps terminal identity, wipes orders/outbox/catalog and marks unhydrated', async () => {
+  it('keeps terminal identity and number pool, wipes orders/outbox/catalog and marks unhydrated', async () => {
     const identity = await posStore.getTerminalIdentity();
     await posStore.upsertCatalogRecords('tax', [{ id: 'tax:vat', name: 'VAT', rate: 10 }]);
+    await posStore.storeNumberReservations('invoice', 100, 110, getBusinessDayUnixRange().day);
+    await posStore.setPendingNumberReservation('invoice', {
+      reservationId: 'term:invoice:block-pending',
+      count: 200,
+    });
     await posStore.createOrderWithItems({
       invoiceNumber: 99,
       items: [{ dishId: 'menu_item:d1', price: 8, quantity: 1 }],
@@ -696,7 +706,12 @@ describe('PosStore clearLocalData (Reload cache)', () => {
     expect(await db.catalog.count()).toBe(0);
     expect(await db.domainOperations.count()).toBe(0);
     expect(await db.syncOutbox.count()).toBe(0);
-    expect(await db.numberReservations.count()).toBe(0);
+    expect(await db.numberReservations.count()).toBe(11);
+    expect(await posStore.countReservedNumbers('invoice')).toBe(11);
+    expect(await posStore.getPendingNumberReservation('invoice')).toEqual({
+      reservationId: 'term:invoice:block-pending',
+      count: 200,
+    });
 
     const cursor = await posStore.getSyncCursor();
     expect(cursor).toMatchObject({
@@ -791,5 +806,69 @@ describe('PosStore table locks', () => {
     expect(beat?.is_locked).toBe(true);
     expect(beat?.locked_by).toBe('Cashier Two');
     expect(beat?.locked_at).toBeTruthy();
+  });
+});
+
+describe('PosStore number reservation allocate + release', () => {
+  const today = () => getBusinessDayUnixRange().day;
+
+  beforeEach(async () => {
+    resetPosStoreDatabaseForTests();
+    await posStore.initialize();
+    await posStore.storeNumberReservations('invoice', 500, 505, today());
+    await posStore.storeNumberReservations('auto_id', 800, 805);
+  });
+
+  it('allocates invoice and auto_id inside createOrderWithItems when omitted', async () => {
+    const beforeInvoice = await posStore.countReservedNumbers('invoice');
+    const beforeAuto = await posStore.countReservedNumbers('auto_id');
+    const { order } = await posStore.createOrderWithItems({
+      items: [{ dishId: 'menu_item:d1', price: 5, quantity: 1 }],
+    });
+    expect(order.invoice_number).toBe(500);
+    expect(order.auto_id).toBe(800);
+    expect(await posStore.countReservedNumbers('invoice')).toBe(beforeInvoice - 1);
+    expect(await posStore.countReservedNumbers('auto_id')).toBe(beforeAuto - 1);
+  });
+
+  it('releaseNumber returns a consumed value to the reserved pool', async () => {
+    const value = await posStore.consumeInvoiceNumber();
+    expect(value).toBe(500);
+    expect(await posStore.countReservedNumbers('invoice')).toBe(5);
+    await posStore.releaseNumber('invoice', value);
+    expect(await posStore.countReservedNumbers('invoice')).toBe(6);
+    expect(await posStore.consumeInvoiceNumber()).toBe(500);
+  });
+
+  it('discards yesterday invoice pool so a new day can restart at 1', async () => {
+    // Wipe today's beforeEach pool, leave only a yesterday block.
+    await posStore.discardStaleNumberReservations('invoice', '1999-01-01');
+    await posStore.storeNumberReservations('invoice', 90, 95, '1999-01-01');
+    expect(await posStore.countReservedNumbers('invoice')).toBe(6);
+
+    const removed = await posStore.discardStaleNumberReservations('invoice', today());
+    expect(removed).toBe(6);
+    expect(await posStore.countReservedNumbers('invoice')).toBe(0);
+
+    await posStore.storeNumberReservations('invoice', 1, 5, today());
+    const { order } = await posStore.createOrderWithItems({
+      items: [{ dishId: 'menu_item:d1', price: 5, quantity: 1 }],
+    });
+    expect(order.invoice_number).toBe(1);
+  });
+
+  it('keeps pending reservation ids across set/get for idempotent refill', async () => {
+    await posStore.setPendingNumberReservation('invoice', {
+      reservationId: 'term-1:invoice:block-abc',
+      count: 200,
+      scopeId: today(),
+    });
+    expect(await posStore.getPendingNumberReservation('invoice')).toEqual({
+      reservationId: 'term-1:invoice:block-abc',
+      count: 200,
+      scopeId: today(),
+    });
+    await posStore.setPendingNumberReservation('invoice', null);
+    expect(await posStore.getPendingNumberReservation('invoice')).toBeNull();
   });
 });
