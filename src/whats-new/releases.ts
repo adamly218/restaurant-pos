@@ -7,6 +7,14 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-19',
+    title: 'Custom brand color',
+    items: [
+      'Settings → Appearance → Custom lets you pick a primary color; the app builds light and dark surfaces, borders, and accents from it on this device.',
+      'Preset packs (Classic, Ocean, Forest, Cream, Ruby, Sapphire) remain available alongside Custom.',
+    ],
+  },
+  {
     date: '2026-09-18',
     title: 'Invoice numbers and menu priority',
     items: [
