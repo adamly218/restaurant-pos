@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { posStore } from '@/infrastructure/pos-store/pos-store.ts';
+import { scrubOrderOutboxPayload } from '@/infrastructure/pos-store/commands.ts';
 import {
   applyRemoteEvent,
   projectSnapshotOrder,
@@ -8,6 +9,11 @@ import {
 import type { NumberSeries, PendingNumberReservation, SyncPhase } from '@/infrastructure/pos-store/types.ts';
 import { Tables } from '@/api/db/tables.ts';
 import { getBusinessDayUnixRange } from '@/lib/datetime.ts';
+import {
+  normalizeNumberPolicy,
+  NUMBER_POLICY_KEY,
+  policyUsesLocalInvoicePool,
+} from '@/lib/number-policy.ts';
 import {
   fetchSnapshotPage,
   handshake,
@@ -70,13 +76,25 @@ const OPERATIONAL_TABLES = new Set<string>([
 ]);
 
 /**
- * Reserved int ranges per series. Invoice numbers are minted on the gateway at
- * CREATE; only `auto_id` still uses a local reserved block. There is no string
- * fallback — when the auto_id pool is exhausted offline, split/merge must wait.
+ * Reserved int ranges per series. Invoice numbers are usually gateway-minted;
+ * `auto_id` always uses a local reserved block. When the restaurant chooses
+ * pool/hybrid mint, invoice rejoins this refill loop.
  */
 const NUMBER_BLOCK_SIZE = 200;
 const NUMBER_REFILL_THRESHOLD = NUMBER_BLOCK_SIZE / 2;
-const NUMBER_SERIES: NumberSeries[] = ['auto_id'];
+
+async function numberSeriesForPolicy(): Promise<NumberSeries[]> {
+  try {
+    const row = await posStore.getGlobalSetting(NUMBER_POLICY_KEY);
+    const policy = normalizeNumberPolicy(row?.values ?? row?.payload?.values);
+    if (policyUsesLocalInvoicePool(policy)) {
+      return ['invoice', 'auto_id'];
+    }
+  } catch {
+    // Default: gateway mint — no invoice pool.
+  }
+  return ['auto_id'];
+}
 
 let syncInFlight: Promise<void> | null = null;
 /** Set when synchronize() is requested while a run is already in flight. */
@@ -287,6 +305,10 @@ export class TerminalSyncService {
       const operations = pending
         .map((row) => row.operation)
         .filter((op): op is NonNullable<typeof op> => !!op)
+        .map((op) => ({
+          ...op,
+          payload: scrubOrderOutboxPayload(op.payload),
+        }))
         .sort((a, b) => Number(a.sequence ?? 0) - Number(b.sequence ?? 0));
 
       // Push in small batches so a hung Surreal write cannot stall all 40+ ops,
@@ -416,8 +438,9 @@ export class TerminalSyncService {
   ): Promise<void> {
     const { day, startUnix, endUnix } = getBusinessDayUnixRange();
     let lastError: unknown;
+    const seriesList = await numberSeriesForPolicy();
 
-    for (const series of NUMBER_SERIES) {
+    for (const series of seriesList) {
       try {
         const dayScoped = DAY_SCOPED_NUMBER_SERIES.has(series);
         if (dayScoped) {

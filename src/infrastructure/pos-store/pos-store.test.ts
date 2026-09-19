@@ -12,9 +12,9 @@ import { getInvoiceNumber } from '@/lib/order.ts';
 
 describe('SurrealDB record IDs', () => {
   it('generates unquoted-safe record IDs', () => {
-    expect(recordId('order')).toMatch(/^order:r[0-9a-f]{32}$/);
-    expect(recordId('order_item')).toMatch(/^order_item:r[0-9a-f]{32}$/);
-    expect(recordId('order_item_kitchen')).toMatch(/^order_item_kitchen:r[0-9a-f]{32}$/);
+    expect(recordId('order')).toMatch(/^order:r[A-Za-z0-9_-]+$/);
+    expect(recordId('order_item')).toMatch(/^order_item:r[A-Za-z0-9_-]+$/);
+    expect(recordId('order_item_kitchen')).toMatch(/^order_item_kitchen:r[A-Za-z0-9_-]+$/);
   });
 
   it('preserves explicit record IDs', () => {
@@ -829,6 +829,9 @@ describe('PosStore number reservation allocate + release', () => {
     expect(order.invoice_number).toBeUndefined();
     expect(order.local_invoice_code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
     expect(getInvoiceNumber(order as any)).toBe(order.local_invoice_code);
+    const pending = await posStore.getPendingOutbox();
+    expect(pending[0].operation?.operationType).toBe('CREATE_RECORD');
+    expect(pending[0].operation?.payload?.data?.local_invoice_code).toBeUndefined();
     expect(order.auto_id).toBe(800);
     expect(await posStore.countReservedNumbers('invoice')).toBe(beforeInvoice);
     expect(await posStore.countReservedNumbers('auto_id')).toBe(beforeAuto - 1);
@@ -839,12 +842,13 @@ describe('PosStore number reservation allocate + release', () => {
       items: [{ dishId: 'menu_item:d1', price: 5, quantity: 1 }],
     });
     await posStore.applyInvoiceAssignments([
-      { aggregateId: order.id, invoiceNumber: 7 },
+      { aggregateId: order.id, invoiceNumber: 7, invoiceDisplay: 'INV-007', invoicePrefix: 'INV-' },
     ]);
     const next = await posStore.getOrder(order.id);
     expect(next?.invoice_number).toBe(7);
+    expect(next?.invoice_display).toBe('INV-007');
     expect(next?.local_invoice_code).toBe(order.local_invoice_code);
-    expect(getInvoiceNumber(next as any)).toBe('7');
+    expect(getInvoiceNumber(next as any)).toBe('INV-007');
   });
 
   it('releaseNumber returns a consumed value to the reserved pool', async () => {

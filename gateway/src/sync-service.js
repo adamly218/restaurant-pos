@@ -414,6 +414,8 @@ async function push(db, body) {
             operationId: op.operationId,
             aggregateId: String(op.aggregateId || op.payload?.recordId || ''),
             invoiceNumber: result.invoiceNumber,
+            ...(result.invoiceDisplay ? { invoiceDisplay: result.invoiceDisplay } : {}),
+            ...(result.invoicePrefix ? { invoicePrefix: result.invoicePrefix } : {}),
           });
         }
       } else {

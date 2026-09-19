@@ -23,6 +23,9 @@ export interface Order extends ID{
   table: Table
   auto_id: number
   invoice_number: number
+  /** Snapshot of the formatted invoice label at mint (policy template). */
+  invoice_display?: string | null
+  invoice_prefix?: string | null
   /** Dexie-only until gateway assigns `invoice_number`. */
   local_invoice_code?: string
   split?: number

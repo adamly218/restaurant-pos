@@ -1,6 +1,14 @@
 'use strict';
 
 const { RecordId, StringRecordId } = require('surrealdb');
+const {
+  NUMBER_POLICY_KEY,
+  normalizeNumberPolicy,
+  counterKeyForPolicy,
+  formatInvoiceDisplay,
+  terminalCodeFallback,
+  DEFAULT_NUMBER_POLICY,
+} = require('./number-policy');
 
 /**
  * Record-link fields per SCHEMAFULL table in the order aggregate.
@@ -455,17 +463,62 @@ async function seedDayInvoiceMax(db, startUnix, endUnix) {
   }
 }
 
-/** Shared day counter — the only minter of fiscal invoice numbers. */
-async function allocateInvoiceNumber(db, payload, data) {
-  const scopeId = resolveInvoiceBusinessDay(payload, data);
-  const { startUnix, endUnix } = businessDayUnixRange(scopeId, payload);
-  const counterId = toRecord('sync_number_counter', `invoice_${scopeId.replace(/-/g, '')}`);
+async function seedGlobalInvoiceMax(db) {
+  try {
+    const row = first(
+      await db.query(`SELECT math::max(invoice_number) AS max FROM order GROUP ALL`),
+    );
+    const max = Number(row?.max);
+    return Number.isFinite(max) && max > 0 ? Math.floor(max) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function loadNumberPolicy(db) {
+  try {
+    const row = first(
+      await db.query(
+        `SELECT * FROM setting WHERE key = $key AND (is_global = true OR is_global = NONE) LIMIT 1`,
+        { key: NUMBER_POLICY_KEY },
+      ),
+    );
+    return normalizeNumberPolicy(row?.values);
+  } catch {
+    return { ...DEFAULT_NUMBER_POLICY };
+  }
+}
+
+/**
+ * Policy-driven mint: shared counter keyed by scope + reset window.
+ * Returns { invoiceNumber, invoiceDisplay, invoicePrefix }.
+ */
+async function allocateInvoiceNumber(db, payload, data, terminalId) {
+  const policy = await loadNumberPolicy(db);
+  const businessDay = resolveInvoiceBusinessDay(payload, data);
+  const terminalCode = String(payload?.terminalCode || '').trim()
+    || terminalCodeFallback(terminalId || payload?.data?.owner_terminal_id || '');
+  const branchCode = String(payload?.branchCode || policy.branchCode || '').trim();
+  const counterKey = counterKeyForPolicy(policy, {
+    day: businessDay,
+    terminalCode,
+    branchCode,
+  });
+  const counterId = toRecord('sync_number_counter', counterKey);
   let counter = first(await db.query(`SELECT * FROM $id`, { id: counterId }));
   if (!counter) {
-    const seed = await seedDayInvoiceMax(db, startUnix, endUnix);
+    let seed = Math.max(0, Number(policy.startAt || 1) - 1);
+    if (policy.reset === 'day') {
+      const { startUnix, endUnix } = businessDayUnixRange(businessDay, payload);
+      const dayMax = await seedDayInvoiceMax(db, startUnix, endUnix);
+      seed = Math.max(seed, dayMax);
+    } else if (policy.reset === 'never' && policy.scope === 'restaurant') {
+      const globalMax = await seedGlobalInvoiceMax(db);
+      seed = Math.max(seed, globalMax);
+    }
     await db.query(
       `CREATE $id SET series = $series, scope_id = $scopeId, value = $seed, updated_at = time::now()`,
-      { id: counterId, series: 'invoice', scopeId, seed },
+      { id: counterId, series: 'invoice', scopeId: counterKey, seed },
     );
     counter = { value: seed };
   }
@@ -474,7 +527,14 @@ async function allocateInvoiceNumber(db, payload, data) {
     id: counterId,
     next,
   });
-  return next;
+  const invoiceDisplay = formatInvoiceDisplay(policy, {
+    seq: next,
+    day: businessDay,
+    terminal: terminalCode,
+    branch: branchCode || policy.branchCode,
+  });
+  const invoicePrefix = policy.prefix || null;
+  return { invoiceNumber: next, invoiceDisplay, invoicePrefix };
 }
 
 async function findAcceptedOperation(db, operationId) {
@@ -559,15 +619,21 @@ async function applyOperation(db, op, terminalId, scopeId) {
     const acceptedType = op.operationType || op.type;
     const acceptedTable = (op.payload || {}).table || op.aggregateType;
     let invoiceNumber = null;
+    let invoiceDisplay = null;
+    let invoicePrefix = null;
     if (acceptedType === 'CREATE_RECORD' && acceptedTable === 'order') {
       const existing = await loadOrder(db, String(op.payload?.recordId || op.aggregateId || ''));
       const n = Number(existing?.invoice_number);
       if (Number.isFinite(n) && n > 0) invoiceNumber = n;
+      if (existing?.invoice_display) invoiceDisplay = String(existing.invoice_display);
+      if (existing?.invoice_prefix) invoicePrefix = String(existing.invoice_prefix);
     }
     return {
       status: 'accepted',
       eventId: accepted.event_id,
       ...(invoiceNumber != null ? { invoiceNumber } : {}),
+      ...(invoiceDisplay ? { invoiceDisplay } : {}),
+      ...(invoicePrefix ? { invoicePrefix } : {}),
     };
   }
 
@@ -584,6 +650,8 @@ async function applyOperation(db, op, terminalId, scopeId) {
   const expectedVersion = Number(op.expectedVersion ?? 0);
   let orderVersionPatch = null;
   let assignedInvoiceNumber = null;
+  let assignedInvoiceDisplay = null;
+  let assignedInvoicePrefix = null;
 
   // Ownership is enforced only while offline. Online, any terminal may open/mutate.
   if (!isKitchenOp(type) && ownerOrderId && OWNER_GATED_OPS.includes(type)) {
@@ -632,16 +700,53 @@ async function applyOperation(db, op, terminalId, scopeId) {
     if (type === 'CREATE_RECORD' && table === 'order') {
       // Children first so order.items never references missing order_item rows.
       const writtenItemIds = await upsertOrderChildren(db, payload);
-      const invoiceNumber = await allocateInvoiceNumber(db, payload, payload.data);
+      // Prefer a client-minted int only for mint:terminal. Hybrid/gateway always mint here.
+      const policy = await loadNumberPolicy(db);
+      const clientInvoice = Number(payload.data?.invoice_number);
+      let invoiceNumber;
+      let invoiceDisplay;
+      let invoicePrefix;
+      const keepClient = policy.mint === 'terminal'
+        && Number.isFinite(clientInvoice)
+        && clientInvoice > 0;
+      if (keepClient) {
+        invoiceNumber = Math.floor(clientInvoice);
+        invoiceDisplay = payload.data?.invoice_display
+          ? String(payload.data.invoice_display)
+          : formatInvoiceDisplay(policy, {
+            seq: invoiceNumber,
+            day: resolveInvoiceBusinessDay(payload, payload.data),
+            terminal: String(payload?.terminalCode || '').trim()
+              || terminalCodeFallback(terminalId),
+            branch: String(payload?.branchCode || policy.branchCode || '').trim(),
+          });
+        invoicePrefix = payload.data?.invoice_prefix
+          ? String(payload.data.invoice_prefix)
+          : (policy.prefix || null);
+      } else {
+        const allocated = await allocateInvoiceNumber(db, payload, payload.data, terminalId);
+        invoiceNumber = allocated.invoiceNumber;
+        invoiceDisplay = allocated.invoiceDisplay;
+        invoicePrefix = allocated.invoicePrefix;
+      }
       assignedInvoiceNumber = invoiceNumber;
+      assignedInvoiceDisplay = invoiceDisplay;
+      assignedInvoicePrefix = invoicePrefix;
       if (payload.data && typeof payload.data === 'object') {
+        // Never persist Dexie-only fields on SCHEMAFULL order.
+        delete payload.data.local_invoice_code;
+        delete payload.data.draft_payments;
         payload.data.invoice_number = invoiceNumber;
+        payload.data.invoice_display = invoiceDisplay;
+        if (invoicePrefix) payload.data.invoice_prefix = invoicePrefix;
       }
       const data = toSurrealRecord(
         'order',
         normalizeSurrealContent({
           ...withoutRecordId(payload.data),
           invoice_number: invoiceNumber,
+          invoice_display: invoiceDisplay,
+          ...(invoicePrefix ? { invoice_prefix: invoicePrefix } : {}),
           items: writtenItemIds.length
             ? writtenItemIds.map((id) => String(id))
             : (payload.data?.items ?? []),
@@ -810,6 +915,8 @@ async function applyOperation(db, op, terminalId, scopeId) {
     status: 'accepted',
     eventId,
     ...(assignedInvoiceNumber != null ? { invoiceNumber: assignedInvoiceNumber } : {}),
+    ...(assignedInvoiceDisplay ? { invoiceDisplay: assignedInvoiceDisplay } : {}),
+    ...(assignedInvoicePrefix ? { invoicePrefix: assignedInvoicePrefix } : {}),
   };
 }
 

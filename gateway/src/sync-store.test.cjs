@@ -193,6 +193,7 @@ test('CREATE_RECORD writes children before order and links only written items', 
   const order = contents.find((value) => Array.isArray(value?.items));
   assert.ok(item && kitchen && order);
   assert.equal(order.invoice_number, 1);
+  assert.equal(order.invoice_display, '1');
   assert.ok(order.items.every(isRecordId));
   assert.equal(item.position, 0);
   assert.equal(item.modifiers[0].id, 'modifier:cheese');
@@ -204,13 +205,20 @@ test('CREATE_RECORD retry returns the already-assigned invoice number', async ()
       return { event_id: 'event:1', operation_id: 'terminal:test:CREATE_RECORD' };
     }
     if (query.startsWith('SELECT * FROM $id')) {
-      return { invoice_number: 7, status: 'In Progress' };
+      return {
+        invoice_number: 7,
+        invoice_display: 'INV-007',
+        invoice_prefix: 'INV-',
+        status: 'In Progress',
+      };
     }
     return undefined;
   });
   const result = await applyOperation(db, operation('CREATE_RECORD'), 'terminal:test', 'default');
   assert.equal(result.status, 'accepted');
   assert.equal(result.invoiceNumber, 7);
+  assert.equal(result.invoiceDisplay, 'INV-007');
+  assert.equal(result.invoicePrefix, 'INV-');
   assert.equal(
     db.calls.some(({ query }) => query.includes('UPSERT')),
     false,

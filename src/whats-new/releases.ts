@@ -8,6 +8,15 @@ export interface ReleaseNotes {
 export const RELEASES: ReleaseNotes[] = [
   {
     date: '2026-09-19',
+    title: 'Configurable invoice number policies',
+    items: [
+      'Settings → Invoice numbers lets each restaurant choose how POS invoices are minted (gateway / terminal pool / hybrid), reset (day / month / year / never), scoped (restaurant / branch / terminal), and formatted with tokens such as {prefix}{yyyy}-{seq}.',
+      'The default stays Date Reset: shared daily 1, 2, 3… from the gateway, with a temporary local code offline until sync. Formatted labels are snapshotted on the order so changing the policy later does not rewrite old checks.',
+      'Terminal, pool, and hybrid presets warn about fiscal gaps and require acknowledgement. Fiscal submit still uses the integer invoice number; authority numbers stay on fiscal submissions.',
+    ],
+  },
+  {
+    date: '2026-09-19',
     title: 'Gateway-assigned invoice numbers',
     items: [
       'POS invoice numbers are assigned by the gateway when the order is created on the server, so every till shares one daily sequence (1, 2, 3…) with no reserved-block jumps.',

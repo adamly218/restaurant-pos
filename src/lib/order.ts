@@ -13,6 +13,10 @@ export const getInvoiceNumber = (order?: OrderModel | null) => {
     return '-';
   }
 
+  if (typeof order.invoice_display === 'string' && order.invoice_display.trim()) {
+    return order.split ? `${order.invoice_display}/${order.split}` : order.invoice_display;
+  }
+
   if (order.invoice_number != null && Number.isFinite(Number(order.invoice_number))) {
     return `${order.invoice_number}${order.split ? `/${order.split}` : ''}`;
   }
