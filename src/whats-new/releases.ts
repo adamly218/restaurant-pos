@@ -11,8 +11,8 @@ export const RELEASES: ReleaseNotes[] = [
     title: 'Gateway-assigned invoice numbers',
     items: [
       'POS invoice numbers are assigned by the gateway when the order is created on the server, so every till shares one daily sequence (1, 2, 3…) with no reserved-block jumps.',
-      'New checks can be taken offline without an invoice number; kitchen and floor keep working. The number appears after sync. Fiscal submit waits until that number exists and uses the same invoice number.',
-      'Split and merge children also get numbers from the gateway, not from a local 200-block. Auto / receipt ids still use reserved pools.',
+      'New checks can be taken offline without an invoice number; kitchen and floor keep working. Until sync, the check shows a 6-character local code (e.g. ABC123). The real number replaces it after the gateway assigns it.',
+      'Fiscal submit waits until that number exists and uses the same invoice number. Split and merge children also get numbers from the gateway, not from a local 200-block. Auto / receipt ids still use reserved pools.',
     ],
   },
   {

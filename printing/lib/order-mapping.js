@@ -101,8 +101,11 @@ function getOrderItemModifierLines(orderItem) {
 
 function getOrderId(order) {
   if (!order) return '';
-  const n = order.invoice_number;
+  const n = order.invoice_number != null && Number.isFinite(Number(order.invoice_number))
+    ? order.invoice_number
+    : (order.local_invoice_code || '');
   const s = order.split;
+  if (!n && (s == null || s === '')) return '';
   return s != null && s !== '' ? `${n}/${s}` : `${n}`;
 }
 

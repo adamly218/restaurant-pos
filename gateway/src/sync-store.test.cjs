@@ -132,6 +132,7 @@ test('toSurrealContent coerces declared order aggregate links and preserves modi
     order_taxes: [],
     created_at: '2026-09-06T14:56:33.847Z',
     owner_terminal_id: 'terminal:abc',
+    local_invoice_code: 'ABC123',
   });
 
   assert.equal(Object.hasOwn(content, 'id'), false);
@@ -148,6 +149,7 @@ test('toSurrealContent coerces declared order aggregate links and preserves modi
   assert.deepEqual(content.order_taxes, []);
   assert.ok(content.created_at instanceof Date);
   assert.equal(content.owner_terminal_id, 'terminal:abc');
+  assert.equal(Object.hasOwn(content, 'local_invoice_code'), false);
 
   const item = toSurrealContent('order_item', {
     id: 'order_item:i1',

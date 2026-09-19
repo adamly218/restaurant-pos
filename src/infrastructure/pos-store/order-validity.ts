@@ -59,6 +59,9 @@ export function preserveOrderHeaderOnMerge(
   if (existing.invoice_number != null && next.invoice_number == null) {
     next.invoice_number = existing.invoice_number;
   }
+  if (existing.local_invoice_code && !next.local_invoice_code) {
+    next.local_invoice_code = existing.local_invoice_code;
+  }
   if (existing.auto_id != null && next.auto_id == null) {
     next.auto_id = existing.auto_id;
   }

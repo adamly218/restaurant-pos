@@ -8,6 +8,7 @@ import {
 import { recordId } from '@/infrastructure/pos-store/identity.ts';
 import { canStealOrder, isOwnerHeartbeatStale } from '@/infrastructure/pos-store/ownership.ts';
 import { getBusinessDayUnixRange } from '@/lib/datetime.ts';
+import { getInvoiceNumber } from '@/lib/order.ts';
 
 describe('SurrealDB record IDs', () => {
   it('generates unquoted-safe record IDs', () => {
@@ -826,6 +827,8 @@ describe('PosStore number reservation allocate + release', () => {
       items: [{ dishId: 'menu_item:d1', price: 5, quantity: 1 }],
     });
     expect(order.invoice_number).toBeUndefined();
+    expect(order.local_invoice_code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+    expect(getInvoiceNumber(order as any)).toBe(order.local_invoice_code);
     expect(order.auto_id).toBe(800);
     expect(await posStore.countReservedNumbers('invoice')).toBe(beforeInvoice);
     expect(await posStore.countReservedNumbers('auto_id')).toBe(beforeAuto - 1);
@@ -840,6 +843,8 @@ describe('PosStore number reservation allocate + release', () => {
     ]);
     const next = await posStore.getOrder(order.id);
     expect(next?.invoice_number).toBe(7);
+    expect(next?.local_invoice_code).toBe(order.local_invoice_code);
+    expect(getInvoiceNumber(next as any)).toBe('7');
   });
 
   it('releaseNumber returns a consumed value to the reserved pool', async () => {

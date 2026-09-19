@@ -1,5 +1,5 @@
 import { getPosStoreDatabase } from './db.ts';
-import { ensureTerminalIdentity, nextOperationIdentity, recordId } from './identity.ts';
+import { ensureTerminalIdentity, nextLocalInvoiceCode, nextOperationIdentity, recordId } from './identity.ts';
 import { assertCashierOwner, canStealOrder } from './ownership.ts';
 import { isPosStoreEffectivelyConnected } from './connectivity.ts';
 import { reconcileOrderItemLinks } from './catalog.ts';
@@ -159,6 +159,8 @@ export async function ensureLocalOrder(source: {
     id: key,
     status: String(source.order?.status ?? 'In Progress'),
     invoice_number: source.order?.invoice_number,
+    local_invoice_code: source.order?.local_invoice_code
+      ?? (source.order?.invoice_number == null ? nextLocalInvoiceCode() : undefined),
     auto_id: source.order?.auto_id,
     covers: source.order?.covers ?? 1,
     floor: refId(source.order?.floor),
@@ -563,6 +565,7 @@ export async function createOrderWithItems(input: CreateOrderInput): Promise<{
         id: orderId,
         status: 'In Progress',
         invoice_number: invoiceNumber,
+        local_invoice_code: invoiceNumber == null ? nextLocalInvoiceCode() : undefined,
         auto_id: autoId,
         covers: input.covers ?? 1,
         floor: input.floorId ?? null,

@@ -40,9 +40,10 @@ counter, at `CREATE_RECORD` for `order`. Every till shares one restaurant-wide
 sequence that restarts at 1 each business day.
 
 - The terminal creates (and splits/merges) checks **without** `invoice_number`.
-  Floor, kitchen, and cart keep working. The number is written when push
-  returns `assignments` and is applied **before** the outbox row is marked
-  accepted. A retried CREATE returns the already-assigned number.
+  Floor, kitchen, and cart show a Dexie-only 6-character code (e.g. `ABC123`)
+  until push returns `assignments`. The code is stripped before Surreal and is
+  never sent to fiscal. Assignments are applied **before** the outbox row is
+  marked accepted. A retried CREATE returns the already-assigned number.
 - Local `auto_id` (and receipt) still use reserved pools. Invoice refill no
   longer runs. `NUMBERS_EXHAUSTED` applies to those leftover pools, not to
   creating a check.

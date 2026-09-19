@@ -111,7 +111,7 @@ const RECORD_LINK_FIELDS = {
  * the SCHEMAFULL Surreal table. Stripped before any write.
  */
 const LOCAL_ONLY_FIELDS = {
-  order: ['draft_payments'],
+  order: ['draft_payments', 'local_invoice_code'],
   // SCHEMAFULL order_payment only has amount/comments/payable/payment_type.
   order_payment: ['order', 'created_at', 'id', 'updated_at'],
   order_extras: ['order', 'id'],

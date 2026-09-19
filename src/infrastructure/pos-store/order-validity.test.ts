@@ -44,4 +44,16 @@ describe('order-validity', () => {
     expect(patch.user).toBe('user:u1');
     expect(patch.status).toBe('Paid');
   });
+
+  it('preserves the local invoice code on sparse merge', () => {
+    const existing = {
+      id: 'order:a',
+      status: 'In Progress',
+      local_invoice_code: 'ABC123',
+    } as OrderRecord;
+    const patch = preserveOrderHeaderOnMerge(existing, {
+      order_type: 'order_type:o2',
+    });
+    expect(patch.local_invoice_code).toBe('ABC123');
+  });
 });

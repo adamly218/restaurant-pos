@@ -149,6 +149,8 @@ export interface OrderRecord {
   id: string;
   status: string;
   invoice_number?: number;
+  /** Dexie-only FOH label (e.g. ABC123) until the gateway assigns `invoice_number`. */
+  local_invoice_code?: string;
   auto_id?: number;
   covers?: number;
   floor?: string | null;

@@ -23,6 +23,8 @@ export interface Order extends ID{
   table: Table
   auto_id: number
   invoice_number: number
+  /** Dexie-only until gateway assigns `invoice_number`. */
+  local_invoice_code?: string
   split?: number
   items: OrderItem[]
   order_type: OrderType

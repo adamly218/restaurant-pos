@@ -1,4 +1,4 @@
-import { nanoid } from 'nanoid';
+import { customAlphabet, nanoid } from 'nanoid';
 import { getPosStoreDatabase } from './db.ts';
 import {
   POS_SCHEMA_VERSION,
@@ -9,6 +9,18 @@ import {
 function createId(): string {
   // nanoid works in non-secure contexts; crypto.randomUUID does not (HTTP LAN/Docker).
   return nanoid();
+}
+
+/** Local FOH label until the gateway assigns `invoice_number`. Not written to Surreal. */
+const LOCAL_INVOICE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const LOCAL_INVOICE_CODE_LENGTH = 6;
+const generateLocalInvoiceCode = customAlphabet(
+  LOCAL_INVOICE_ALPHABET,
+  LOCAL_INVOICE_CODE_LENGTH,
+);
+
+export function nextLocalInvoiceCode(): string {
+  return generateLocalInvoiceCode();
 }
 
 export function createTerminalId(): string {
