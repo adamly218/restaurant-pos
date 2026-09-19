@@ -28,6 +28,7 @@ import {dispatchPrint} from "@/lib/print.service.ts";
 import {PRINT_TYPE} from "@/lib/print.registry.tsx";
 import {ClosingCycleWindow, resolveClosingWindow} from "@/lib/closing-cycle.ts";
 import {getCurrentCycleClosing, hasOpenOrdersInCurrentCycle} from "@/lib/closing.guard.ts";
+import {aggregateAppliedPaymentsByTypeId, isCashPaymentType} from "@/lib/order.ts";
 import {useSecurity} from "@/hooks/useSecurity.ts";
 import {useTranslation} from "react-i18next";
 import { IconTooltipButton } from "@/components/common/input/icon.tooltip.button.tsx";
@@ -133,7 +134,7 @@ export const Closing = () => {
   const fetchCyclePayments = useCallback(async () => {
     try {
       const [result] = await db.query(`
-          SELECT payments.*
+          SELECT payments
           FROM order
           WHERE created_at >= $start
             AND created_at <= $end
@@ -145,20 +146,7 @@ export const Closing = () => {
         end: toSurrealDateTime(closingWindow.date_to),
       });
 
-      const orders = result as any[];
-      const paymentTotals = new Map<string, number>();
-
-      orders.forEach((order: any) => {
-        if (!order.payments) return;
-        order.payments.forEach((payment: any) => {
-          const paymentTypeId = payment.payment_type?.id?.toString();
-          if (!paymentTypeId) return;
-          const current = paymentTotals.get(paymentTypeId) || 0;
-          paymentTotals.set(paymentTypeId, current + Number(payment.amount || 0));
-        });
-      });
-
-      return paymentTotals;
+      return aggregateAppliedPaymentsByTypeId((result as any[]) ?? []);
     } catch (error) {
       console.error("Error fetching closing-window payments:", error);
       return new Map<string, number>();
@@ -186,21 +174,11 @@ export const Closing = () => {
     setTerminalDenominations(normalizedDenominations);
   }, [t]);
 
-  const hydratePayments = useCallback(async (source: ClosingModel | null) => {
+  const hydratePayments = useCallback(async () => {
     const systemPayments = await fetchCyclePayments();
-    const savedPaymentsMap = new Map<string, number>(
-      (source?.payments_data || []).map((entry) => {
-        const typeRaw = entry.payment_type as PaymentType | string | undefined;
-        const paymentTypeId = typeof typeRaw === "object" && typeRaw
-          ? String(typeRaw.id)
-          : String(typeRaw || "");
-        return [paymentTypeId, Number(entry.amount || 0)];
-      })
-    );
-
     setPaymentSummaries(paymentTypes.map(pt => ({
       payment_type: pt,
-      amount: savedPaymentsMap.get(String(pt.id)) ?? systemPayments.get(String(pt.id)) ?? 0,
+      amount: systemPayments.get(String(pt.id)) ?? 0,
     })));
   }, [fetchCyclePayments, paymentTypes]);
 
@@ -218,7 +196,7 @@ export const Closing = () => {
       setExpenses(cycleClosing?.expenses_data || []);
       setNotes(cycleClosing?.notes || "");
       hydrateTerminals(cycleClosing);
-      await hydratePayments(cycleClosing);
+      await hydratePayments();
     } catch (error) {
       console.error("Error loading closing data:", error);
       toast.error(t("toast:closing.loadFailed"));
@@ -246,9 +224,19 @@ export const Closing = () => {
     return computedTerminalCash.reduce((sum, terminal) => sum + terminal.cash_amount, 0);
   }, [computedTerminalCash]);
 
+  const totalSystemCash = useMemo(() => {
+    return paymentSummaries
+      .filter(ps => isCashPaymentType(ps.payment_type))
+      .reduce((sum, ps) => sum + ps.amount, 0);
+  }, [paymentSummaries]);
+
+  const cashDifference = useMemo(() => {
+    return totalCash - totalSystemCash;
+  }, [totalCash, totalSystemCash]);
+
   const totalOtherPayments = useMemo(() => {
     return paymentSummaries
-      .filter(ps => ps.payment_type.type?.toLowerCase() !== "cash")
+      .filter(ps => !isCashPaymentType(ps.payment_type))
       .reduce((sum, ps) => sum + ps.amount, 0);
   }, [paymentSummaries]);
 
@@ -668,6 +656,30 @@ export const Closing = () => {
             </div>
             <div className="mt-4 p-4 bg-surface rounded-lg text-foreground">
               <span className="text-lg font-semibold">{t("closing:totals.totalCash", {amount: withCurrency(totalCash)})}</span>
+            </div>
+            <div className="mt-4 p-4 bg-surface rounded-lg text-foreground">
+              <div className="text-sm text-muted">{t("closing:totals.cashFromPayments")}</div>
+              <div className="text-lg font-semibold">{withCurrency(totalSystemCash)}</div>
+              <div
+                className={`mt-2 text-lg font-semibold ${cashDifference === 0 ? "text-foreground" : cashDifference > 0 ? "text-success-600" : "text-danger-600"}`}
+              >
+                {t("closing:totals.difference", {amount: withCurrency(cashDifference)})}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-surface-elevated rounded-lg shadow-md p-6 mb-8" data-testid="closing-payment-types-section">
+            <h2 className="text-xl font-semibold mb-4">{t("closing:sections.paymentTypesSummary")}</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {paymentSummaries.map((ps) => (
+                <div key={String(ps.payment_type.id)} className="border rounded-lg p-4">
+                  <div className="text-sm font-medium mb-1">{ps.payment_type.name}</div>
+                  <div className="text-lg font-semibold tabular-nums">{withCurrency(ps.amount)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 p-4 bg-surface rounded-lg text-foreground">
+              <span className="text-lg font-semibold">{t("closing:totals.totalOtherPayments", {amount: withCurrency(totalOtherPayments)})}</span>
             </div>
           </div>
 

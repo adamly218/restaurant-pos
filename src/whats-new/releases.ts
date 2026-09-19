@@ -7,6 +7,13 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-20',
+    title: 'Closing payment totals',
+    items: [
+      'Day closing payment type totals now use the same applied amounts as Summary (tendered cash minus change), instead of raw tendered amounts.',
+    ],
+  },
+  {
     date: '2026-09-19',
     title: 'Custom brand color',
     items: [
