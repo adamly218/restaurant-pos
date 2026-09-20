@@ -1,11 +1,13 @@
+import { nanoid } from 'nanoid';
 import { posStore } from '@/infrastructure/pos-store/pos-store.ts';
 import {
   applyRemoteEvent,
   projectSnapshotOrder,
   projectSnapshotRecords,
 } from '@/infrastructure/pos-store/projection.ts';
-import type { NumberSeries, SyncPhase } from '@/infrastructure/pos-store/types.ts';
+import type { NumberSeries, PendingNumberReservation, SyncPhase } from '@/infrastructure/pos-store/types.ts';
 import { Tables } from '@/api/db/tables.ts';
+import { getBusinessDayUnixRange } from '@/lib/datetime.ts';
 import {
   fetchSnapshotPage,
   handshake,
@@ -19,6 +21,8 @@ import {
   conflictAutoRetryEligible,
   noteConflictAutoRetry,
 } from './conflict-auto-retry.ts';
+
+const DAY_SCOPED_NUMBER_SERIES = new Set<NumberSeries>(['invoice', 'receipt']);
 
 const SNAPSHOT_TABLES = [
   Tables.order_types,
@@ -181,6 +185,9 @@ export class TerminalSyncService {
     await handshake({ terminalId: identity.terminalId });
     await hydrateSnapshot(identity.terminalId);
     await posStore.reconcileOrderItemLinks();
+    // Refill here — synchronize() can skip runSync when another tab holds the
+    // leader lock, which left terminals with an empty invoice pool after Reload cache.
+    await this.refillNumbers(identity.terminalId, { required: true });
     await this.synchronize({ force: true });
   }
 
@@ -400,21 +407,86 @@ export class TerminalSyncService {
     return count;
   }
 
-  private async refillNumbers(terminalId: string): Promise<void> {
+  private async refillNumbers(
+    terminalId: string,
+    options?: { required?: boolean },
+  ): Promise<void> {
+    const { day, startUnix, endUnix } = getBusinessDayUnixRange();
+    let lastError: unknown;
+
     for (const series of NUMBER_SERIES) {
       try {
-        const available = await posStore.countReservedNumbers(series);
+        const dayScoped = DAY_SCOPED_NUMBER_SERIES.has(series);
+        if (dayScoped) {
+          await posStore.discardStaleNumberReservations(series, day);
+          const pending = await posStore.getPendingNumberReservation(series);
+          if (pending && pending.scopeId && pending.scopeId !== day) {
+            await posStore.setPendingNumberReservation(series, null);
+          }
+        }
+
+        const available = await posStore.countReservedNumbers(
+          series,
+          dayScoped ? day : undefined,
+        );
         if (available > NUMBER_REFILL_THRESHOLD) continue;
-        const reservationId = `${terminalId}:${series}:block-${Date.now()}`;
-        const range = await reserveNumbers({
-          terminalId,
-          kind: series,
+
+        const newPending = (): PendingNumberReservation => ({
+          // nanoid works on HTTP LAN/Docker; crypto.randomUUID does not.
+          reservationId: dayScoped
+            ? `${terminalId}:${series}:${day}:block-${nanoid()}`
+            : `${terminalId}:${series}:block-${nanoid()}`,
           count: NUMBER_BLOCK_SIZE,
-          reservationId,
+          ...(dayScoped ? { scopeId: day } : {}),
         });
-        await posStore.storeNumberReservations(series, range.start, range.end);
-      } catch {
-        // Best-effort while online; the local pool covers the outage window.
+
+        const reserveAndStore = async (pending: PendingNumberReservation) => {
+          const range = await reserveNumbers({
+            terminalId,
+            kind: series,
+            count: pending.count,
+            reservationId: pending.reservationId,
+            ...(dayScoped
+              ? { scopeId: day, dayStartUnix: startUnix, dayEndUnix: endUnix }
+              : {}),
+          });
+          await posStore.storeNumberReservations(
+            series,
+            range.start,
+            range.end,
+            dayScoped ? day : undefined,
+          );
+          await posStore.setPendingNumberReservation(series, null);
+        };
+
+        let pending = await posStore.getPendingNumberReservation(series);
+        if (!pending || (dayScoped && pending.scopeId && pending.scopeId !== day)) {
+          pending = newPending();
+          await posStore.setPendingNumberReservation(series, pending);
+        }
+
+        try {
+          await reserveAndStore(pending);
+        } catch (error) {
+          console.error(`Number refill failed for ${series}; retrying with a new reservation`, error);
+          await posStore.setPendingNumberReservation(series, null);
+          const retry = newPending();
+          await posStore.setPendingNumberReservation(series, retry);
+          await reserveAndStore(retry);
+        }
+      } catch (error) {
+        lastError = error;
+        console.error(`Number refill gave up for ${series}`, error);
+        if (options?.required) throw error;
+      }
+    }
+
+    if (options?.required) {
+      const invoiceLeft = await posStore.countReservedNumbers('invoice', day);
+      if (invoiceLeft === 0) {
+        throw lastError instanceof Error
+          ? lastError
+          : new Error('No reserved invoice numbers after refill — check the gateway');
       }
     }
   }

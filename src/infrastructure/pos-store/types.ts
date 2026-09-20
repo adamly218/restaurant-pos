@@ -113,12 +113,23 @@ export const OUTBOX_MAX_ATTEMPTS = 8;
 export const OUTBOX_BACKOFF_BASE_MS = 2_000;
 export const OUTBOX_BACKOFF_MAX_MS = 5 * 60_000;
 
+export type NumberSeries = 'invoice' | 'receipt' | 'auto_id';
+
+export interface PendingNumberReservation {
+  reservationId: string;
+  count: number;
+  /** Business day (yyyy-MM-dd) for day-scoped invoice series. */
+  scopeId?: string;
+}
+
 export interface SyncCursorRow {
   id: 'singleton';
   cursor: number;
   highWatermark?: number;
   hydrated: boolean;
   snapshotResumeToken?: string | null;
+  /** In-flight gateway refill — reused on retry so Date.now() ids cannot orphan blocks. */
+  pendingNumberReservations?: Partial<Record<NumberSeries, PendingNumberReservation>>;
 }
 
 export interface SyncConflictRow {
@@ -244,8 +255,6 @@ export interface CatalogRecord {
   updated_at?: string;
 }
 
-export type NumberSeries = 'invoice' | 'receipt' | 'auto_id';
-
 export interface NumberReservationRow {
   id: string;
   series: NumberSeries;
@@ -253,6 +262,8 @@ export interface NumberReservationRow {
   status: 'reserved' | 'consumed';
   reserved_at: string;
   consumed_at?: string;
+  /** Business day (yyyy-MM-dd) for invoice; unset/global for auto_id. */
+  scope_id?: string;
 }
 
 /** Generic Surreal child row mirrored in Dexie. `order` is kept locally for

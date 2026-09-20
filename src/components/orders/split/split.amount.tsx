@@ -179,6 +179,9 @@ export const SplitAmount = ({
     if (!isValid) return;
 
     setIsSaving(true);
+    const allocatedInvoices: number[] = [];
+    const allocatedAutoIds: number[] = [];
+    let committed = false;
     try {
       await assertOrderMutationsAllowed(db).catch((err) => {
         // Closing guard needs the master DB; offline we let the local-first path proceed.
@@ -220,10 +223,14 @@ export const SplitAmount = ({
           };
         });
 
+        const invoiceNumber = await posStore.consumeInvoiceNumber();
+        allocatedInvoices.push(invoiceNumber);
+        const autoId = await posStore.consumeAutoId();
+        allocatedAutoIds.push(autoId);
         groups.push({
           newItems,
-          invoiceNumber: await posStore.consumeInvoiceNumber(),
-          autoId: await posStore.consumeAutoId(),
+          invoiceNumber,
+          autoId,
           order: {
             covers: Math.ceil(order.covers / splits.length) || 1,
             split: split.number,
@@ -251,6 +258,7 @@ export const SplitAmount = ({
         userId: String(page.user.id),
         seed: { order, items: order.items },
       });
+      committed = true;
 
       // Distribute extras proportionally onto the children (local-first relation replace).
       await Promise.all(
@@ -275,6 +283,12 @@ export const SplitAmount = ({
       toast.success(t('split.toast.success', {count: children.length}));
       onClose?.();
     } catch (error) {
+      if (!committed) {
+        await Promise.all([
+          ...allocatedInvoices.map((value) => posStore.releaseNumber('invoice', value)),
+          ...allocatedAutoIds.map((value) => posStore.releaseNumber('auto_id', value)),
+        ]);
+      }
       console.error('Error creating split orders:', error);
       if ((error as any)?.code === 'NUMBERS_EXHAUSTED') {
         toast.error(t('payment:errors.numbersExhausted'));

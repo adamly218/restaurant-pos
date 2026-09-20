@@ -16,6 +16,33 @@ export const RELEASES: ReleaseNotes[] = [
     ],
   },
   {
+    date: '2026-09-20',
+    title: 'Closing payment totals',
+    items: [
+      'Day closing payment type totals now use the same applied amounts as Summary (tendered cash minus change), instead of raw tendered amounts.',
+    ],
+  },
+  {
+    date: '2026-09-19',
+    title: 'Custom brand color',
+    items: [
+      'Settings → Appearance → Custom lets you pick a primary color; the app builds light and dark surfaces, borders, and accents from it on this device.',
+      'Preset packs (Classic, Ocean, Forest, Cream, Ruby, Sapphire) remain available alongside Custom.',
+    ],
+  },
+  {
+    date: '2026-09-18',
+    title: 'Invoice numbers and menu priority',
+    items: [
+      'Reload cache no longer discards reserved invoice and receipt number pools, which was a common cause of sudden +100/+200 jumps.',
+      'Number refill retries reuse the same reservation id so a timed-out gateway response cannot orphan a whole block; concurrent reserves are serialized on the gateway.',
+      'New orders allocate invoice numbers inside the create transaction, and failed split/merge flows release unused numbers back to the pool.',
+      'Floor buttons, dishes, categories, order types, and tables on the POS follow priority (then name) again after catalog hydrate.',
+      'Invoice numbers restart at 1 each business day (app timezone); receipt numbers follow the same day scope. Auto IDs stay global forever.',
+      'Existing same-day invoice pools are kept (not wiped) when they predate day-scoped reservations, and Reload cache always refills numbers even if another tab is syncing.',
+    ],
+  },
+  {
     date: '2026-09-14',
     title: 'Orders card hydrate and ghost checks',
     items: [

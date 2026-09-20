@@ -261,4 +261,4 @@ function printQrCode(printer, value, logo, config) {
   return printFiscalQrRow(printer, value, logo, config);
 }
 
-module.exports = { printBillLayout };
+module.exports = { printBillLayout, formatDiscountMinimalPrint };

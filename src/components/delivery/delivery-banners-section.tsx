@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState, type ChangeEvent} from "react";
 import {useTranslation} from "react-i18next";
 import {toast} from "sonner";
+import {nanoid} from "nanoid";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faTrash} from "@fortawesome/free-solid-svg-icons";
 import {useDB} from "@/api/db/db.ts";
@@ -129,7 +130,7 @@ export const DeliveryBannersSection = () => {
     }
 
     const newPending = Array.from(files).map((file) => ({
-      id: `pending-${crypto.randomUUID()}`,
+      id: `pending-${nanoid()}`,
       file,
       previewUrl: trackPreviewUrl(URL.createObjectURL(file)),
     }));

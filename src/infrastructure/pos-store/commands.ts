@@ -13,6 +13,7 @@ import {
   type CustomerRecord,
   type DomainOperation,
   type NumberSeries,
+  type PendingNumberReservation,
   type TableLockRecord,
   type OrderItemKitchenRecord,
   type OrderItemRecord,
@@ -20,6 +21,9 @@ import {
   type OrderRecord,
   type SyncOutboxRow,
 } from './types.ts';
+import { getBusinessDayUnixRange } from '@/lib/datetime.ts';
+
+const DAY_SCOPED_NUMBER_SERIES = new Set<NumberSeries>(['invoice', 'receipt']);
 
 export function notifyWrite(): void {
   if (typeof window !== 'undefined') {
@@ -515,62 +519,91 @@ export async function createOrderWithItems(input: CreateOrderInput): Promise<{
     kitchens.push(...built.kitchens);
   });
 
-  const order: OrderRecord = {
-    id: orderId,
-    status: 'In Progress',
-    invoice_number: input.invoiceNumber,
-    auto_id: input.autoId,
-    covers: input.covers ?? 1,
-    floor: input.floorId ?? null,
-    table: input.tableId ?? null,
-    order_type: input.orderTypeId ?? null,
-    customer: input.customerId ?? null,
-    user: input.userId ?? null,
-    items: itemIds,
-    tags: input.tags ?? ['Normal'],
-    service_charge: input.serviceCharge ?? 0,
-    service_charge_amount: input.serviceChargeAmount ?? 0,
-    service_charge_type: input.serviceChargeType ?? 'Percent',
-    tax_amount: 0,
-    discount_amount: 0,
-    created_at: createdAt,
-    updated_at: createdAt,
-    deleted_at: null,
-    owner_terminal_id: identity.terminalId,
-    owner_heartbeat_at: createdAt,
-    server_version: 1,
-  };
-
   const opIdentity = await nextOperationIdentity();
-  const operation: DomainOperation = {
-    operationId: opIdentity.operationId,
-    terminalId: opIdentity.terminalId,
-    sequence: opIdentity.sequence,
-    aggregateType: 'order',
-    aggregateId: orderId,
-    operationType: 'CREATE_RECORD',
-    expectedVersion: 0,
-    payload: {
-      table: 'order',
-      recordId: orderId,
-      data: order,
-      items,
-      kitchens,
-    },
-    createdAt,
-    protocolVersion: POS_SYNC_PROTOCOL_VERSION,
-    schemaVersion: POS_SCHEMA_VERSION,
-  };
 
-  await db.transaction('rw', [db.orders, db.orderItems, db.orderItemKitchens, db.domainOperations, db.syncOutbox, db.identity], async () => {
+  const result = await db.transaction(
+    'rw',
+    [
+      db.orders,
+      db.orderItems,
+      db.orderItemKitchens,
+      db.domainOperations,
+      db.syncOutbox,
+      db.identity,
+      db.numberReservations,
+    ],
+    async () => {
+      let invoiceNumber = input.invoiceNumber;
+      let autoId = input.autoId;
+      const invoiceDay = getBusinessDayUnixRange().day;
+      if (invoiceNumber == null) {
+        await adoptOrDiscardInTx(db, 'invoice', invoiceDay);
+        invoiceNumber = await consumeNumberInTx(db, 'invoice', invoiceDay);
+      }
+      if (autoId == null) {
+        try {
+          autoId = await consumeNumberInTx(db, 'auto_id');
+        } catch {
+          autoId = undefined;
+        }
+      }
+
+      const order: OrderRecord = {
+        id: orderId,
+        status: 'In Progress',
+        invoice_number: invoiceNumber,
+        auto_id: autoId,
+        covers: input.covers ?? 1,
+        floor: input.floorId ?? null,
+        table: input.tableId ?? null,
+        order_type: input.orderTypeId ?? null,
+        customer: input.customerId ?? null,
+        user: input.userId ?? null,
+        items: itemIds,
+        tags: input.tags ?? ['Normal'],
+        service_charge: input.serviceCharge ?? 0,
+        service_charge_amount: input.serviceChargeAmount ?? 0,
+        service_charge_type: input.serviceChargeType ?? 'Percent',
+        tax_amount: 0,
+        discount_amount: 0,
+        created_at: createdAt,
+        updated_at: createdAt,
+        deleted_at: null,
+        owner_terminal_id: identity.terminalId,
+        owner_heartbeat_at: createdAt,
+        server_version: 1,
+      };
+
+      const operation: DomainOperation = {
+        operationId: opIdentity.operationId,
+        terminalId: opIdentity.terminalId,
+        sequence: opIdentity.sequence,
+        aggregateType: 'order',
+        aggregateId: orderId,
+        operationType: 'CREATE_RECORD',
+        expectedVersion: 0,
+        payload: {
+          table: 'order',
+          recordId: orderId,
+          data: order,
+          items,
+          kitchens,
+        },
+        createdAt,
+        protocolVersion: POS_SYNC_PROTOCOL_VERSION,
+        schemaVersion: POS_SCHEMA_VERSION,
+      };
+
       await db.orders.put(order);
       await db.orderItems.bulkPut(items);
       if (kitchens.length) await db.orderItemKitchens.bulkPut(kitchens);
       await appendOperation(operation);
-  });
+      return { order, items, kitchens };
+    },
+  );
 
   notifyWrite();
-  return { order, items, kitchens };
+  return result;
 }
 
 export async function mergeOrder(
@@ -906,25 +939,73 @@ export async function addItemsToOrder(
  * `auto_id` are ints, so there is deliberately no string fallback: when the
  * local pool is exhausted offline the caller must block the create with a toast.
  */
+function isCurrentNumberScope(
+  row: { scope_id?: string },
+  scopeId: string,
+): boolean {
+  const scope = row.scope_id;
+  // Pre-day-scope pools have no scope_id (or the old gateway 'default').
+  if (!scope || scope === 'default' || scope === 'global') return true;
+  return scope === scopeId;
+}
+
+async function adoptOrDiscardInTx(
+  db: ReturnType<typeof getPosStoreDatabase>,
+  series: NumberSeries,
+  scopeId: string,
+): Promise<number> {
+  const rows = await db.numberReservations.where({ series }).toArray();
+  const stale = rows.filter((row) => !isCurrentNumberScope(row, scopeId));
+  const adopt = rows.filter(
+    (row) => isCurrentNumberScope(row, scopeId) && row.scope_id !== scopeId,
+  );
+  if (stale.length) {
+    await db.numberReservations.bulkDelete(stale.map((row) => row.id));
+  }
+  if (adopt.length) {
+    await db.numberReservations.bulkPut(
+      adopt.map((row) => ({ ...row, scope_id: scopeId })),
+    );
+  }
+  return stale.length;
+}
+
+async function consumeNumberInTx(
+  db: ReturnType<typeof getPosStoreDatabase>,
+  series: NumberSeries,
+  scopeId?: string,
+): Promise<number> {
+  const reserved = await db.numberReservations
+    .where({ series, status: 'reserved' })
+    .sortBy('value');
+  const first = scopeId
+    ? reserved.find((row) => isCurrentNumberScope(row, scopeId))
+    : reserved[0];
+  if (!first) {
+    throw new PosStoreError(
+      'NUMBERS_EXHAUSTED',
+      `No reserved ${series} numbers left — reconnect to the gateway to refill`,
+    );
+  }
+  await db.numberReservations.put({
+    ...first,
+    ...(scopeId ? { scope_id: scopeId } : {}),
+    status: 'consumed',
+    consumed_at: nowIso(),
+  });
+  return first.value;
+}
+
 export async function consumeNumber(series: NumberSeries): Promise<number> {
   const db = getPosStoreDatabase();
+  const scopeId = DAY_SCOPED_NUMBER_SERIES.has(series)
+    ? getBusinessDayUnixRange().day
+    : undefined;
   return db.transaction('rw', db.numberReservations, async () => {
-    const reserved = await db.numberReservations
-      .where({ series, status: 'reserved' })
-      .sortBy('value');
-    const first = reserved[0];
-    if (!first) {
-      throw new PosStoreError(
-        'NUMBERS_EXHAUSTED',
-        `No reserved ${series} numbers left — reconnect to the gateway to refill`,
-      );
+    if (scopeId) {
+      await adoptOrDiscardInTx(db, series, scopeId);
     }
-    await db.numberReservations.put({
-      ...first,
-      status: 'consumed',
-      consumed_at: nowIso(),
-    });
-    return first.value;
+    return consumeNumberInTx(db, series, scopeId);
   });
 }
 
@@ -936,7 +1017,78 @@ export function consumeAutoId(): Promise<number> {
   return consumeNumber('auto_id');
 }
 
-export async function countReservedNumbers(series: NumberSeries): Promise<number> {
+/** Return a consumed number to the reserved pool after a failed split/merge. */
+export async function releaseNumber(series: NumberSeries, value: number): Promise<void> {
   const db = getPosStoreDatabase();
-  return db.numberReservations.where({ series, status: 'reserved' }).count();
+  const id = `${series}:${value}`;
+  await db.transaction('rw', db.numberReservations, async () => {
+    const row = await db.numberReservations.get(id);
+    if (!row || row.status !== 'consumed') return;
+    const { consumed_at: _consumedAt, ...rest } = row;
+    await db.numberReservations.put({
+      ...rest,
+      status: 'reserved',
+    });
+  });
+}
+
+export async function countReservedNumbers(
+  series: NumberSeries,
+  scopeId?: string,
+): Promise<number> {
+  const db = getPosStoreDatabase();
+  if (!scopeId) {
+    return db.numberReservations.where({ series, status: 'reserved' }).count();
+  }
+  const reserved = await db.numberReservations
+    .where({ series, status: 'reserved' })
+    .toArray();
+  return reserved.filter((row) => isCurrentNumberScope(row, scopeId)).length;
+}
+
+export async function getPendingNumberReservation(
+  series: NumberSeries,
+): Promise<PendingNumberReservation | null> {
+  const db = getPosStoreDatabase();
+  const cursor = await db.syncCursor.get('singleton');
+  return cursor?.pendingNumberReservations?.[series] ?? null;
+}
+
+export async function setPendingNumberReservation(
+  series: NumberSeries,
+  pending: PendingNumberReservation | null,
+): Promise<void> {
+  const db = getPosStoreDatabase();
+  const current = (await db.syncCursor.get('singleton')) ?? {
+    id: 'singleton' as const,
+    cursor: 0,
+    hydrated: false,
+    snapshotResumeToken: null,
+  };
+  const next = { ...(current.pendingNumberReservations ?? {}) };
+  if (pending) {
+    next[series] = pending;
+  } else {
+    delete next[series];
+  }
+  await db.syncCursor.put({
+    ...current,
+    id: 'singleton',
+    pendingNumberReservations: Object.keys(next).length ? next : undefined,
+  });
+}
+
+/**
+ * Drop local invoice/receipt pool rows that belong to another business day so
+ * numbers can restart at 1. Legacy rows with no scope are adopted as today —
+ * deleting them on the same day is what emptied terminals after the day-scope deploy.
+ */
+export async function discardStaleNumberReservations(
+  series: NumberSeries,
+  scopeId: string,
+): Promise<number> {
+  const db = getPosStoreDatabase();
+  return db.transaction('rw', db.numberReservations, async () => {
+    return adoptOrDiscardInTx(db, series, scopeId);
+  });
 }

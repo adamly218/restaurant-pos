@@ -5,9 +5,11 @@ const { getEngine } = require('./lib/engines');
 const { getBuilder } = require('./print-builders');
 const { createDevice } = require('./drivers');
 const { DEFAULT_OPTIONS } = require('./lib/engines/text-engine');
+const { withPrinterLock } = require('./lib/printer-queue');
 
 /**
  * Handle print request: for each printer, merge type+device config, pick engine, print.
+ * Jobs for the same physical printer are serialized so each ticket cuts before the next starts.
  * @param {Object} body - { printers: Array<{ type, print_mode?, paper_width_mm?, ... }>, data: { printType, ... }, config?: object }
  * @returns {Promise<{ success: boolean, results: Array<{ index: number, ok: boolean, error?: string, mode?: string }> }>}
  */
@@ -30,9 +32,11 @@ async function handlePrint(body) {
       const engine = getEngine(effective.printMode);
       const escposOptions = p.escposOptions || {};
 
-      for (let c = 0; c < copies; c++) {
-        await engine.print(p, escposOptions, printType, data, effective);
-      }
+      await withPrinterLock(p, async () => {
+        for (let c = 0; c < copies; c++) {
+          await engine.print(p, escposOptions, printType, data, effective);
+        }
+      });
       results.push({ index: i, ok: true, mode: engine.name });
     } catch (err) {
       results.push({

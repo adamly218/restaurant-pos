@@ -433,13 +433,13 @@ function printFixedLine(printer, text, opts) {
   if (size !== 'normal') applyTextSize(printer, size);
   if (style === 'bold') printer.style('b');
   else if (style === 'bold-underline') printer.style('bu');
-  printer.align('lt').text(padAlign(text, align, null, size));
+  printer.align('lt').text(formatFixedLine(text, opts));
   hardResetLayout(printer);
 }
 
 function printDivider(printer) {
   hardResetLayout(printer);
-  printer.align('lt').text('-'.repeat(PRINTER_WIDTH));
+  printer.align('lt').text(formatDividerLine());
 }
 
 /**
@@ -462,6 +462,48 @@ function formatMoney(amount, symbol) {
  * @param {string} right
  * @param {{ size?: [number,number] }} opts
  */
+function formatLineLeftRight(left, right, opts) {
+  const options = opts || {};
+  const size = options.size || [1, 1];
+  const [w, h] = size;
+  const textSize = w === 2 && h === 2 ? 'large' : (w !== 1 || h !== 1 ? 'medium' : 'normal');
+  const lineWidth = getEffectiveLineWidth(textSize);
+  const half = Math.floor(lineWidth / 2);
+  const leftStr = padRight(String(left || '').slice(0, half), half);
+  const rightStr = padLeft(String(right || '').slice(0, half), half);
+  const gap = lineWidth - half - half;
+  return leftStr + ' '.repeat(Math.max(0, gap)) + rightStr;
+}
+
+function formatFixedLine(text, opts) {
+  const options = opts || {};
+  const align = options.align || 'left';
+  const size = options.size || 'normal';
+  return padAlign(text, align, null, size);
+}
+
+function formatDividerLine() {
+  return '-'.repeat(PRINTER_WIDTH);
+}
+
+/**
+ * Centered hardware-aligned line payload (matches printHardwareAlignedLine limits).
+ * @param {string} text
+ * @param {{ size?: string, style?: string }} [opts]
+ * @returns {{ text: string, size: string, style?: string, align: 'center' }}
+ */
+function formatCenteredHardwareLine(text, opts) {
+  const options = opts || {};
+  const size = options.size || 'normal';
+  const maxLen = getEffectiveLineWidth(size);
+  return {
+    text: String(text || '').slice(0, maxLen),
+    size,
+    style: options.style,
+    align: 'center',
+  };
+}
+
 function printLineLeftRight(printer, left, right, opts) {
   const options = opts || {};
   const size = options.size || [1, 1];
@@ -471,12 +513,7 @@ function printLineLeftRight(printer, left, right, opts) {
   if (textSize !== 'normal') applyTextSize(printer, textSize);
   if (options.style === 'bold-underline') printer.style('bu');
   else if (options.style === 'bold') printer.style('b');
-  const lineWidth = getEffectiveLineWidth(textSize);
-  const half = Math.floor(lineWidth / 2);
-  const leftStr = padRight(String(left || '').slice(0, half), half);
-  const rightStr = padLeft(String(right || '').slice(0, half), half);
-  const gap = lineWidth - half - half;
-  printer.align('lt').text(leftStr + ' '.repeat(Math.max(0, gap)) + rightStr);
+  printer.align('lt').text(formatLineLeftRight(left, right, opts));
   hardResetLayout(printer);
 }
 
@@ -725,6 +762,12 @@ function printPrintingTimestamp(printer, config) {
     // ignore
   }
   printCenteredText(printer, ts);
+  // Extra space after datetime so the last line clears the cutter (and tickets don't look cramped).
+  try {
+    if (typeof printer.feed === 'function') printer.feed(2);
+  } catch (e) {
+    // ignore
+  }
 }
 
 /**
@@ -1161,6 +1204,22 @@ function writeBitmapS24(printer, image) {
 }
 
 /**
+ * Map MIME / file extension to @cronvel/get-pixels type (expects "png", not "image/png").
+ * @param {string} [mime]
+ * @returns {string}
+ */
+function mimeToGetPixelsType(mime) {
+  const raw = String(mime || 'image/png').toLowerCase().split(';')[0].trim();
+  if (!raw) return 'png';
+  if (raw === 'png' || raw === 'image/png' || raw === 'image/x-png') return 'png';
+  if (raw === 'jpeg' || raw === 'jpg' || raw === 'image/jpeg' || raw === 'image/jpg') return 'jpeg';
+  if (raw === 'gif' || raw === 'image/gif') return 'gif';
+  if (raw === 'bmp' || raw === 'image/bmp' || raw === 'image/x-ms-bmp') return 'bmp';
+  if (raw.startsWith('image/')) return raw.slice(6);
+  return raw;
+}
+
+/**
  * Load PNG buffer into escpos Image.
  * @param {Buffer} buf
  * @param {string} mime
@@ -1168,7 +1227,7 @@ function writeBitmapS24(printer, image) {
  */
 function loadEscposImage(buf, mime) {
   return new Promise((resolve) => {
-    Image.load(buf, mime || 'image/png', (arg0, arg1) => {
+    Image.load(buf, mimeToGetPixelsType(mime), (arg0, arg1) => {
       if (!arg0) {
         resolve(null);
         return;
@@ -1453,6 +1512,8 @@ module.exports = {
   printCenteredText,
   printAlignedText,
   padAlign,
+  padRight,
+  padLeft,
   resetTextSize,
   hardResetLayout,
   printFixedLine,
@@ -1465,6 +1526,10 @@ module.exports = {
   buildItemRowString,
   buildItemHeaderString,
   formatMoney,
+  formatLineLeftRight,
+  formatFixedLine,
+  formatDividerLine,
+  formatCenteredHardwareLine,
   printLineLeftRight,
   sendCashDrawerPulse,
   printFiscalQrRow,

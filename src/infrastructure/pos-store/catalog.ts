@@ -161,10 +161,10 @@ export async function loadHydratedCatalog(): Promise<{
     getCatalogTable('user'),
   ]);
 
-  const order_types = order_typesRaw.filter(isActive);
-  const categories = categoriesRaw.filter(isActive);
+  const order_types = order_typesRaw.filter(isActive).sort(sortByPriorityName);
+  const categories = categoriesRaw.filter(isActive).sort(sortByPriorityName);
   const dishes = dishesRaw.filter(isActive);
-  const floors = floorsRaw.filter(isActive);
+  const floors = floorsRaw.filter(isActive).sort(sortByPriorityName);
   const tables = tablesRaw.filter(isActive);
   const kitchens = kitchensRaw.filter(isActive);
   const taxes = taxesRaw.filter(isActive).sort(sortByPriorityName);
@@ -205,13 +205,15 @@ export async function loadHydratedCatalog(): Promise<{
     })),
   );
 
-  const hydratedDishes = dishes.map((dish) => ({
-    ...dish,
-    categories: resolveMany(dish.categories, categoryMap),
-    tax: resolveOne(dish.tax, taxMap),
-    taxes: resolveMany(dish.taxes, taxMap),
-    workflow: resolveOne(dish.workflow, workflowMap),
-  }));
+  const hydratedDishes = dishes
+    .map((dish) => ({
+      ...dish,
+      categories: resolveMany(dish.categories, categoryMap),
+      tax: resolveOne(dish.tax, taxMap),
+      taxes: resolveMany(dish.taxes, taxMap),
+      workflow: resolveOne(dish.workflow, workflowMap),
+    }))
+    .sort(sortByPriorityName);
 
   const dishHydratedMap = byId(hydratedDishes);
   const menuItemMap = byId(menuItems);
@@ -227,6 +229,29 @@ export async function loadHydratedCatalog(): Promise<{
       }))
       .filter((item: any) => item?.menu_item),
   }));
+
+  // Settings → Menus controls which timed menus are active in FOH.
+  // Empty selection must stay [] so resolveMenuAwareData shows the full catalog
+  // (projecting every menu row activates filter mode and can hide all items).
+  const menuSetting = settings.find(
+    (row) => String(row.key) === 'menus' && (row.is_global === true || row.is_global == null),
+  );
+  const selectedMenuIds = new Set(
+    (Array.isArray(menuSetting?.values) ? menuSetting.values : [])
+      .map((value: unknown) => {
+        if (value == null) return '';
+        if (typeof value === 'string') return value;
+        if (typeof value === 'object' && value !== null && 'id' in value) {
+          return String((value as { id: unknown }).id ?? '');
+        }
+        return String(value);
+      })
+      .filter(Boolean),
+  );
+  const menusForSettings =
+    selectedMenuIds.size === 0
+      ? []
+      : hydratedMenus.filter((menu) => selectedMenuIds.has(String(menu.id)));
 
   const groupReferenceMap = byId(modifier_groups);
   const hydratedModifiers = modifiers.map((modifier) => ({
@@ -250,13 +275,15 @@ export async function loadHydratedCatalog(): Promise<{
     }))
     .sort((a, b) => Number(a.priority ?? 0) - Number(b.priority ?? 0));
 
-  const hydratedTables = tables.map((table) => ({
-    ...table,
-    floor: resolveOne(table.floor, floorMap),
-    categories: resolveMany(table.categories, categoryMap),
-    order_types: resolveMany(table.order_types, orderTypeMap),
-    payment_types: resolveMany(table.payment_types, paymentTypeMap),
-  }));
+  const hydratedTables = tables
+    .map((table) => ({
+      ...table,
+      floor: resolveOne(table.floor, floorMap),
+      categories: resolveMany(table.categories, categoryMap),
+      order_types: resolveMany(table.order_types, orderTypeMap),
+      payment_types: resolveMany(table.payment_types, paymentTypeMap),
+    }))
+    .sort(sortByPriorityName);
   const hydratedTableMap = byId(hydratedTables);
 
   const hydratedExtras = extras
@@ -277,7 +304,7 @@ export async function loadHydratedCatalog(): Promise<{
     kitchens,
     payment_types,
     taxes,
-    menus: hydratedMenus,
+    menus: menusForSettings,
     modifier_groups: hydratedGroups,
     groups_dishes: hydratedGroupsDishes,
     workflows: [...workflowMap.values()],

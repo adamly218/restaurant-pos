@@ -12,32 +12,29 @@ const {
   formatPrintingTimestamp,
   decodeImageInput,
   resolvePaperWidthPx,
+  formatFixedLine,
+  formatLineLeftRight,
+  formatDividerLine,
+  formatCenteredHardwareLine,
+  buildItemRowString,
+  buildItemHeaderString,
 } = require('./receipt-helpers');
 const { mapOrderToTemp, mapOrderToFinal, mapOrderToDelivery, mapOrderToRefund } = require('./order-mapping');
 const { computeSummary, formatNum } = require('./summary-mapping');
+const { ensureRasterFonts } = require('./raster-fonts');
+const { getRasterMetrics, calibrateMetrics, buildCtxFont } = require('./raster-metrics');
+const { paintBillLayoutRaster } = require('./raster-bill-layout');
+const { paintKotHeaderRaster } = require('./raster-kot-layout');
 
-const LINE_H = 18;
-const PAD_X = 8;
-const FONT_NORMAL = '12px "Courier New", Courier, monospace';
-const FONT_BOLD = 'bold 12px "Courier New", Courier, monospace';
-const FONT_MEDIUM = 'bold 14px "Courier New", Courier, monospace';
-const FONT_LARGE = 'bold 16px "Courier New", Courier, monospace';
+function lineHeightForSize(metrics, size) {
+  if (size === 'large') return metrics.lineHeightLarge;
+  return metrics.lineHeightNormal;
+}
 
-/**
- * @param {string|null|undefined} name
- * @param {string|null|undefined} valueType
- * @param {number|null|undefined} rate
- * @param {string} [fallback]
- */
-function formatDiscountMinimal(name, valueType, rate, fallback) {
-  const label = fallback || 'Discount';
-  const n = Number(rate || 0);
-  const isPercent = valueType === 'percent' || (!valueType && n > 0);
-  if (name && valueType === 'fixed_amount' && n > 0) return `${label} (${n} ${name})`;
-  if (name && isPercent && n > 0) return `${label} (${n}% ${name})`;
-  if (name) return `${label} (${name})`;
-  if (isPercent && n > 0) return `${label} (${n}%)`;
-  return label;
+function scaleForSize(metrics, size) {
+  if (size === 'large') return { x: metrics.scaleLarge, y: metrics.scaleLarge };
+  if (size === 'medium') return { x: metrics.scaleMedium, y: 1 };
+  return { x: 1, y: 1 };
 }
 
 class ReceiptCanvas {
@@ -47,48 +44,79 @@ class ReceiptCanvas {
    */
   constructor(width, opts) {
     const { createCanvas } = require('canvas');
-    this.width = Math.max(8, Math.ceil(width / 8) * 8);
+    this.metrics = getRasterMetrics(width);
+    this.width = this.metrics.paperWidthPx;
     this.threshold = opts && opts.threshold != null ? opts.threshold : 180;
     this.ops = [];
-    this._estimatedH = 24;
+    this._estimatedH = this.metrics.lineHeightNormal;
     this._createCanvas = createCanvas;
   }
 
   _grow(h) {
-    this._estimatedH += h;
+    this._estimatedH += h != null ? h : this.metrics.lineHeightNormal;
+  }
+
+  _pushText(op) {
+    this.ops.push({ type: 'text', ...op });
+    this._grow(lineHeightForSize(this.metrics, op.size || 'normal'));
   }
 
   feed(n) {
     const lines = Math.max(0, Number(n) || 0);
     this.ops.push({ type: 'feed', n: lines });
-    this._grow(lines * LINE_H);
+    this._grow(lines * this.metrics.lineHeightNormal);
   }
 
   divider() {
-    this.ops.push({ type: 'divider' });
-    this._grow(LINE_H);
+    this._pushText({ text: formatDividerLine(), size: 'normal', align: 'left' });
   }
 
+  /** @deprecated use fixedLine / lineLeftRight / centered */
   text(content, opts) {
     const o = opts || {};
-    this.ops.push({
-      type: 'text',
-      content: String(content || ''),
-      align: o.align || 'left',
-      bold: !!o.bold,
+    this.aligned(String(content || ''), o.align || 'left', {
       size: o.size || 'normal',
+      style: o.bold ? 'bold' : undefined,
     });
-    this._grow(o.size === 'large' ? 22 : o.size === 'medium' ? 20 : LINE_H);
   }
 
+  /** @deprecated use lineLeftRight */
   row(left, right, opts) {
-    this.ops.push({
-      type: 'row',
-      left: String(left || ''),
-      right: String(right || ''),
-      bold: !!(opts && opts.bold),
+    this.lineLeftRight(left, right, opts);
+  }
+
+  fixedLine(text, opts) {
+    const o = opts || {};
+    this._pushText({
+      text: formatFixedLine(text, o),
+      size: o.size || 'normal',
+      style: o.style,
+      align: 'left',
     });
-    this._grow(LINE_H);
+  }
+
+  lineLeftRight(left, right, opts) {
+    const o = opts || {};
+    this._pushText({
+      text: formatLineLeftRight(left, right, o),
+      size: 'normal',
+      style: o.style,
+      align: 'left',
+    });
+  }
+
+  centered(text, opts) {
+    const payload = formatCenteredHardwareLine(text, opts);
+    this._pushText(payload);
+  }
+
+  aligned(text, align, opts) {
+    const o = opts || {};
+    if (align === 'left') {
+      this.fixedLine(text, { ...o, align: 'left' });
+      return;
+    }
+    this.centered(text, o);
   }
 
   /**
@@ -107,7 +135,7 @@ class ReceiptCanvas {
   qr(value, opts) {
     if (!value) return;
     this.ops.push({ type: 'qr', value: String(value), size: (opts && opts.size) || 4 });
-    this._grow(160);
+    this._grow(Math.round(this.metrics.lineHeightNormal * 7));
   }
 
   /**
@@ -123,58 +151,105 @@ class ReceiptCanvas {
     ctx.fillStyle = '#000000';
     ctx.textBaseline = 'top';
 
-    let y = 8;
-    const innerW = this.width - PAD_X * 2;
+    const family = ensureRasterFonts();
+    const metrics = calibrateMetrics(this.metrics, ctx);
+    let y = 0;
 
-    const fontFor = (size, bold) => {
-      if (size === 'large') return FONT_LARGE;
-      if (size === 'medium') return FONT_MEDIUM;
-      return bold ? FONT_BOLD : FONT_NORMAL;
-    };
+    const drawText = (op) => {
+      const size = op.size || 'normal';
+      const style = op.style;
+      const underline = style === 'bold-underline';
+      const align = op.align || 'left';
+      const { x: scaleX, y: scaleY } = scaleForSize(metrics, size);
+      const fontPx = metrics.normalFontPx;
+      const cols = metrics.printerWidth;
+      // Layout cells span the full printable width (Mike42/ESC a character grid).
+      // Glyph font may be slightly smaller (−4px) but still sits in these cells.
+      const cellW = metrics.paperWidthPx / cols;
 
-    const drawTextLine = (str, align, font) => {
-      ctx.font = font;
-      const metrics = ctx.measureText(str);
-      let x = PAD_X;
-      if (align === 'center') x = Math.floor((this.width - metrics.width) / 2);
-      else if (align === 'right') x = this.width - PAD_X - metrics.width;
-      ctx.fillText(str, Math.max(0, x), y);
-      y += sizeLineHeight(font);
-    };
+      ctx.save();
+      ctx.font = buildCtxFont(false, fontPx, family);
 
-    const sizeLineHeight = (font) => {
-      if (font === FONT_LARGE) return 22;
-      if (font === FONT_MEDIUM) return 20;
-      return LINE_H;
+      const maxChars = Math.max(1, Math.floor(cols / scaleX));
+      const text = String(op.text || '').slice(0, maxChars);
+      const usedCols = text.length * scaleX;
+
+      let drawX = 0;
+      if (align === 'center') {
+        drawX = Math.round(Math.floor((cols - usedCols) / 2) * cellW);
+      } else if (align === 'right') {
+        drawX = Math.round(Math.max(0, cols - usedCols) * cellW);
+      }
+
+      // For left-aligned padAlign'd lines, advance glyphs on the cell grid so
+      // 42 columns still fill the paper even when the TTF is slightly smaller.
+      const glyphW = ctx.measureText('M').width || cellW;
+      const needsStretch = scaleX !== 1 || scaleY !== 1;
+      const srcH = Math.max(1, Math.ceil(fontPx * 1.35));
+      const destH = Math.max(1, Math.round(srcH * scaleY));
+
+      if (!text) {
+        ctx.restore();
+        y += lineHeightForSize(metrics, size);
+        return;
+      }
+
+      if (align === 'left' && scaleX === 1 && scaleY === 1) {
+        // Monospace cell advance: keep ESC/POS column alignment across the paper.
+        let x = 0;
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          if (ch !== ' ') {
+            const cw = ctx.measureText(ch).width;
+            ctx.fillText(ch, Math.round(x + Math.max(0, (cellW - cw) / 2)), y);
+          }
+          x += cellW;
+        }
+        if (underline) {
+          ctx.fillRect(0, y + fontPx + 1, Math.round(text.length * cellW), Math.max(1, Math.round(fontPx * 0.06)));
+        }
+      } else if (needsStretch) {
+        const measuredW = Math.max(1, Math.ceil(glyphW * text.length));
+        const destW = Math.max(1, Math.round(usedCols * cellW));
+        const off = this._createCanvas(measuredW, srcH);
+        const octx = off.getContext('2d');
+        octx.fillStyle = '#ffffff';
+        octx.fillRect(0, 0, measuredW, srcH);
+        octx.fillStyle = '#000000';
+        octx.textBaseline = 'top';
+        octx.font = buildCtxFont(false, fontPx, family);
+        octx.fillText(text, 0, 0);
+        if (underline) {
+          octx.fillRect(0, fontPx + 1, measuredW, Math.max(1, Math.round(fontPx * 0.06)));
+        }
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(off, drawX, y, destW, destH);
+      } else {
+        // Centered/right normal text: draw as a run starting at the column pad.
+        const runW = ctx.measureText(text).width;
+        const slotW = usedCols * cellW;
+        const glyphPad = Math.max(0, (slotW - runW) / 2);
+        ctx.fillText(text, Math.round(drawX + glyphPad), y);
+        if (underline) {
+          ctx.fillRect(
+            Math.round(drawX + glyphPad),
+            y + fontPx + 1,
+            Math.ceil(runW),
+            Math.max(1, Math.round(fontPx * 0.06))
+          );
+        }
+      }
+      ctx.restore();
+      y += lineHeightForSize(metrics, size);
     };
 
     for (const op of this.ops) {
       if (op.type === 'feed') {
-        y += op.n * LINE_H;
-        continue;
-      }
-      if (op.type === 'divider') {
-        ctx.beginPath();
-        ctx.setLineDash([4, 3]);
-        ctx.moveTo(PAD_X, y + 8);
-        ctx.lineTo(this.width - PAD_X, y + 8);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        y += LINE_H;
+        y += op.n * metrics.lineHeightNormal;
         continue;
       }
       if (op.type === 'text') {
-        drawTextLine(op.content, op.align, fontFor(op.size, op.bold));
-        continue;
-      }
-      if (op.type === 'row') {
-        ctx.font = op.bold ? FONT_BOLD : FONT_NORMAL;
-        const left = op.left;
-        const right = op.right;
-        ctx.fillText(left, PAD_X, y);
-        const rw = ctx.measureText(right).width;
-        ctx.fillText(right, this.width - PAD_X - rw, y);
-        y += LINE_H;
+        drawText(op);
         continue;
       }
       if (op.type === 'image') {
@@ -183,12 +258,12 @@ class ReceiptCanvas {
           if (!decoded) continue;
           const img = await loadImage(decoded.buf);
           const maxSide = op.maxSide || 150;
-          const scale = Math.min(1, maxSide / Math.max(img.width, img.height), innerW / img.width);
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height), this.width / img.width);
           const w = Math.max(1, Math.floor(img.width * scale));
           const h = Math.max(1, Math.floor(img.height * scale));
           const x = Math.floor((this.width - w) / 2);
           ctx.drawImage(img, x, y, w, h);
-          y += h + 6;
+          y += h + Math.round(metrics.lineHeightNormal * 0.35);
         } catch (e) {
           console.warn('[raster] image draw failed', e && e.message);
         }
@@ -199,21 +274,20 @@ class ReceiptCanvas {
           const qr = require('qr-image');
           const qrPng = qr.imageSync(op.value, { type: 'png', size: op.size || 4, margin: 1 });
           const img = await loadImage(qrPng);
-          const maxSide = 140;
-          const scale = Math.min(1, maxSide / Math.max(img.width, img.height), innerW / img.width);
+          const maxSide = Math.min(150, this.width - 16);
+          const scale = Math.min(1, maxSide / Math.max(img.width, img.height), this.width / img.width);
           const w = Math.max(1, Math.floor(img.width * scale));
           const h = Math.max(1, Math.floor(img.height * scale));
           const x = Math.floor((this.width - w) / 2);
           ctx.drawImage(img, x, y, w, h);
-          y += h + 6;
+          y += h + Math.round(metrics.lineHeightNormal * 0.35);
         } catch (e) {
           console.warn('[raster] qr draw failed', e && e.message);
-          drawTextLine(op.value.slice(0, 42), 'center', FONT_NORMAL);
+          drawText({ text: op.value.slice(0, 42), size: 'normal', align: 'center' });
         }
       }
     }
 
-    // Crop to used height (plus padding), width unchanged
     const usedH = Math.max(32, Math.ceil((y + 8) / 8) * 8);
     const out = this._createCanvas(this.width, usedH);
     const octx = out.getContext('2d');
@@ -221,10 +295,10 @@ class ReceiptCanvas {
     octx.fillRect(0, 0, this.width, usedH);
     octx.drawImage(canvas, 0, 0);
 
-    // Force mono via threshold
     const imageData = octx.getImageData(0, 0, this.width, usedH);
     const d = imageData.data;
-    const th = this.threshold;
+    // Slightly higher cutoff than user threshold — DejaVu strokes print heavier than Font A dots.
+    const th = Math.min(255, this.threshold + 12);
     for (let i = 0; i < d.length; i += 4) {
       const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
       const v = lum < th ? 0 : 255;
@@ -243,10 +317,8 @@ function paintSections(rc, sections) {
       if (section.type === 'image' && section.content) {
         rc.image(section.content, { maxSide: 150 });
       } else if (section.type === 'text' && section.content) {
-        rc.text(section.content, {
-          align: section.align || 'center',
+        rc.aligned(section.content, section.align || 'center', {
           size: section.size || 'normal',
-          bold: section.size === 'medium' || section.size === 'large',
         });
       }
     });
@@ -283,7 +355,13 @@ function paintFiscal(rc, qrcodes, qrcode) {
   items.forEach((it) => {
     if (it.logo) rc.image(it.logo, { maxSide: 80 });
     rc.qr(it.value);
-    if (it.description) rc.text(it.description, { align: 'center' });
+    if (it.description) {
+      String(it.description)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .forEach((line) => rc.centered(line, { size: 'normal' }));
+    }
   });
 }
 
@@ -297,7 +375,6 @@ async function renderBillRaster(bill, config, opts) {
   const cfg = normalizeConfig(config || {});
   const o = opts || {};
   const L = cfg.labels || {};
-  const sym = cfg.currencySymbol ?? '$';
   const width = resolvePaperWidthPx(cfg);
   const rc = new ReceiptCanvas(width, { threshold: cfg.rasterThreshold });
 
@@ -305,91 +382,33 @@ async function renderBillRaster(bill, config, opts) {
   if (topFeed) rc.feed(topFeed);
 
   paintBranding(rc, cfg);
-  rc.text(o.title || L.bill || 'Bill', { align: 'center', size: 'medium', bold: true });
-  rc.feed(1);
-  if (cfg.showVatNumber && cfg.vatNumber) {
-    rc.text(`${cfg.vatName}: ${cfg.vatNumber}`, { align: 'center' });
-  }
-  rc.row(`${L.invoice || 'Invoice#'} ${bill.orderId || ''}`, bill.date || '');
-  rc.row(bill.table || '', bill.userName || '');
-  if (o.address) rc.text(`${L.address || 'Address'}: ${String(o.address).slice(0, 40)}`);
-  if (o.phone) rc.text(`${L.phone || 'Phone'}: ${String(o.phone)}`);
-  if (o.customerName) rc.text(`${L.customer || 'Customer'}: ${String(o.customerName)}`);
-  if (o.deliveryTime) rc.text(`${L.deliveryTime || 'Delivery'}: ${String(o.deliveryTime)}`);
-  rc.divider();
-
-  (bill.items || []).forEach((it) => {
-    const name = (it.name || it.title || '').slice(0, 28);
-    const qty = it.qty != null ? it.qty : 1;
-    const lineTotal = it.total != null ? Number(it.total) : (it.price || 0) * qty;
-    rc.row(`${name} x${qty}`, formatMoney(lineTotal, sym));
-    if (Array.isArray(it.modifiers)) {
-      it.modifiers.forEach((m) => {
-        const mn = (m.name || m.title || '').slice(0, 26);
-        if (mn) rc.text(`  > ${mn}`);
-      });
-    }
+  paintBillLayoutRaster(rc, bill, cfg, {
+    title: o.title,
+    address: o.address,
+    phone: o.phone,
+    customerName: o.customerName,
+    deliveryTime: o.deliveryTime,
+    notes: o.notes || bill.note || bill.notes,
+    thankYou: o.thankYou,
+    showPayments: o.showPayments,
+    showChange: o.showChange,
+    showDeliveryLine: o.showDeliveryLine,
   });
-  rc.divider();
 
-  rc.row(`${L.items || 'Items'} (${bill.itemsCount || 0})`, formatMoney(bill.itemsTotal, sym));
-  if (bill.tax != null && Number(bill.tax) !== 0) {
-    rc.row(`${L.tax || 'Tax'} (${bill.taxLabel || L.tax || 'Tax'})`, formatMoney(bill.tax, sym));
-  }
-  if (Array.isArray(bill.discountLines) && bill.discountLines.length === 1) {
-    const d = bill.discountLines[0];
-    rc.row(
-      formatDiscountMinimal(d.rawName, d.valueType, d.rate, L.discount || 'Discount'),
-      '-' + formatMoney(d.amount, sym)
-    );
-  } else if (Array.isArray(bill.discountLines) && bill.discountLines.length > 1) {
-    rc.row(L.discount || 'Discount', '-' + formatMoney(bill.discountAmount, sym));
-    bill.discountLines.forEach((d) => {
-      rc.row(
-        '  ' + formatDiscountMinimal(d.rawName, d.valueType, d.rate, L.discount || 'Discount'),
-        '-' + formatMoney(d.amount, sym)
-      );
-    });
-  } else if (bill.discountAmount != null && Number(bill.discountAmount) !== 0) {
-    rc.row(L.discount || 'Discount', '-' + formatMoney(bill.discountAmount, sym));
-  }
-  if (bill.extra != null && Number(bill.extra) !== 0) {
-    rc.row(L.extra || 'Extra', formatMoney(bill.extra, sym));
-  }
-  if (bill.tip != null && Number(bill.tip) !== 0) {
-    rc.row(L.tip || 'Tip', formatMoney(bill.tip, sym));
-  }
-  if (o.showDeliveryLine && bill.deliveryCharges != null && Number(bill.deliveryCharges) !== 0) {
-    rc.row(L.deliveryCharges || 'Delivery Charges', formatMoney(bill.deliveryCharges, sym));
-  }
-  rc.row(L.total || 'Total', formatMoney(bill.total, sym), { bold: true });
-
-  if (o.showPayments && Array.isArray(bill.payments)) {
-    bill.payments.forEach((p) => {
-      rc.row(`${L.payment || 'Payment'} ${p.name || ''}`.trim(), formatMoney(p.amount, sym));
-    });
-  }
-  if (o.showChange && bill.change != null) {
-    rc.row(L.change || 'Change', formatMoney(bill.change, sym));
-  }
-
-  const notes = o.notes || bill.note || bill.notes;
-  if (notes) {
-    rc.feed(1);
-    rc.text(`${L.notes || 'Notes'}: ${String(notes).slice(0, 80)}`);
-  }
-  if (o.thankYou) {
-    rc.feed(1);
-    rc.text(String(o.thankYou), { align: 'center' });
-  }
-
-  paintFiscal(rc, o.qrcodes, o.qrcode);
   paintSections(rc, cfg.footerSections);
-  rc.feed(1);
-  rc.text(formatPrintingTimestamp(cfg), { align: 'center' });
 
   const bottomFeed = Math.max(0, Number(cfg.bottomMargin) || 0);
   if (bottomFeed) rc.feed(bottomFeed);
+
+  if (o.isFinal) {
+    rc.divider();
+    rc.centered(L.checkClosed || 'Check Closed', { style: 'bold', size: 'normal' });
+  }
+
+  paintFiscal(rc, o.qrcodes, o.qrcode);
+  rc.feed(1);
+  rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
 
   return rc.toPng();
 }
@@ -432,6 +451,7 @@ async function renderFinalRaster(data, config) {
     showPayments: true,
     showChange: true,
     showDeliveryLine: false,
+    isFinal: true,
     qrcodes: data && data.qrcodes,
     qrcode: data && data.qrcode,
   });
@@ -479,39 +499,64 @@ async function renderRefundRaster(data, config) {
   const topFeed = Math.max(0, Number(cfg.topMargin) || 0);
   if (topFeed) rc.feed(topFeed);
   paintBranding(rc, cfg);
-  rc.text(L.refundReceipt || 'REFUND RECEIPT', { align: 'center', bold: true, size: 'medium' });
-  if (cfg.showVatNumber && cfg.vatNumber) {
-    rc.text(`${cfg.vatName}: ${cfg.vatNumber}`, { align: 'center' });
-  }
-  rc.row(`${L.originalInvoice || 'Original Invoice#'} ${bill.originalOrderId || ''}`, '');
-  rc.row(`${L.refundDate || 'Refund Date'}: ${bill.refundDate || ''}`, '');
+
+  const refundReceiptLabel = L.refundReceipt || 'REFUND RECEIPT';
+  const originalInvoiceLabel = L.originalInvoice || 'Original Invoice#';
+  const tableLabel = L.table || 'Table';
+  const orderTypeLabel = L.orderType || 'Order Type';
+  const cashierLabel = L.cashier || 'Cashier';
+  const refundDateLabel = L.refundDate || 'Refund Date';
+  const itemsLabel = L.items || 'Items';
+  const taxLabel = L.tax || 'Tax';
+  const discountLabel = L.discount || 'Discount';
+  const extraLabel = L.extra || 'Extra';
+  const tipLabel = L.tip || 'Tip';
+  const refundTotalLabel = L.refundTotal || 'Refund Total';
+
+  rc.centered(refundReceiptLabel, { size: 'normal', style: 'bold-underline' });
+  rc.lineLeftRight(`${originalInvoiceLabel} ${bill.originalOrderId || ''}`, '');
+  rc.lineLeftRight(`${tableLabel}: ${bill.table || '-'}`, `${orderTypeLabel}: ${bill.orderType || '-'}`);
+  rc.lineLeftRight(`${cashierLabel}: ${bill.userName || '-'}`, '');
+  rc.lineLeftRight(`${refundDateLabel}: ${bill.refundDate || ''}`, '');
   rc.divider();
+
   (bill.items || []).forEach((it) => {
     const name = (it.name || it.title || '').slice(0, 28);
     const qty = it.qty != null ? it.qty : 1;
     const lineTotal = it.total != null ? Number(it.total) : (it.price || 0) * qty;
-    rc.row(`${name} x${qty}`, formatMoney(lineTotal, sym));
+    rc.lineLeftRight(`${name} x${qty}`, formatMoney(lineTotal, sym));
   });
   rc.divider();
-  rc.row(`${L.items || 'Items'} (${bill.itemsCount || 0})`, formatMoney(bill.itemsTotal, sym));
+
+  rc.lineLeftRight(`${itemsLabel} (${bill.itemsCount || 0})`, formatMoney(bill.itemsTotal, sym));
   if (bill.tax != null && Number(bill.tax) !== 0) {
-    rc.row(L.tax || 'Tax', formatMoney(bill.tax, sym));
+    rc.lineLeftRight(`${taxLabel} (${bill.taxLabel || taxLabel})`, formatMoney(bill.tax, sym));
   }
-  if (bill.discountAmount != null && Number(bill.discountAmount) !== 0) {
-    rc.row(L.discount || 'Discount', '-' + formatMoney(bill.discountAmount, sym));
+  if (bill.discount && bill.discountAmount != null && Number(bill.discountAmount) !== 0) {
+    rc.lineLeftRight(discountLabel, formatMoney(bill.discountAmount, sym));
   }
-  if (bill.extra != null && Number(bill.extra) !== 0) {
-    rc.row(L.extra || 'Extra', formatMoney(bill.extra, sym));
+  if (bill.serviceChargeLabel && bill.serviceChargeAmount != null && Number(bill.serviceChargeAmount) !== 0) {
+    rc.lineLeftRight(bill.serviceChargeLabel, formatMoney(bill.serviceChargeAmount, sym));
   }
-  if (bill.tip != null && Number(bill.tip) !== 0) {
-    rc.row(L.tip || 'Tip', formatMoney(bill.tip, sym));
+  (bill.extras || []).forEach((e) => {
+    rc.lineLeftRight(e.name || extraLabel, formatMoney(e.value, sym));
+  });
+  if (bill.tipAmount != null && Number(bill.tipAmount) !== 0) {
+    rc.lineLeftRight(bill.tipLabel || tipLabel, formatMoney(bill.tipAmount, sym));
   }
-  rc.row(L.refundTotal || 'Refund Total', formatMoney(bill.total, sym), { bold: true });
+  rc.divider();
+  rc.lineLeftRight(refundTotalLabel, formatMoney(bill.total, sym), { style: 'bold-underline' });
+
+  if (cfg.showVatNumber && cfg.vatNumber) {
+    rc.centered(`${cfg.vatName}: ${cfg.vatNumber}`, { size: 'normal' });
+  }
+
   paintSections(rc, cfg.footerSections);
-  rc.feed(1);
-  rc.text(formatPrintingTimestamp(cfg), { align: 'center' });
   const bottomFeed = Math.max(0, Number(cfg.bottomMargin) || 0);
   if (bottomFeed) rc.feed(bottomFeed);
+  rc.feed(1);
+  rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
   return rc.toPng();
 }
 
@@ -519,45 +564,67 @@ async function renderKitchenRaster(data, config) {
   const cfg = normalizeConfig(config || {});
   const order = data && data.order;
   if (!order) throw new Error('data.order is required for kitchen raster');
-  const { getOrderId, getOrderCreatedAt, getOrderUserName, getOrderType } = require('./order-mapping');
+  const {
+    getOrderId,
+    getOrderCreatedAt,
+    getOrderItemModifierLines,
+    getOrderUserName,
+    getOrderType,
+  } = require('./order-mapping');
   const width = resolvePaperWidthPx(cfg);
   const rc = new ReceiptCanvas(width, { threshold: cfg.rasterThreshold });
   const topFeed = Math.max(0, Number(cfg.topMargin) || 0);
   if (topFeed) rc.feed(topFeed);
   paintBranding(rc, cfg);
-  rc.text(data.kitchenName || 'KOT', { align: 'center', size: 'medium', bold: true });
-  rc.divider();
+
+  const L = cfg.labels || {};
   const isAddOn = !!data.isAddOn;
-  const orderId = getOrderId(order);
-  const bannerLabel = isAddOn ? 'ADDON' : 'New Order';
-  const orderPart = orderId ? `Order# ${orderId}` : '';
-  const banner = orderPart && bannerLabel ? `${orderPart} | ${bannerLabel}` : orderPart || bannerLabel;
-  if (banner) rc.text(banner, { align: 'center', bold: true });
-  const table = data.table
-    ? String(data.table.name || '') + String(data.table.number || '')
-    : '';
-  const orderType = getOrderType(order);
-  if (table || orderType) {
-    rc.row(table ? `Table: ${table}` : '', orderType ? `Order Type: ${orderType}` : '');
-  }
-  const orderTaker = getOrderUserName(order);
-  const createdAt = getOrderCreatedAt(order, { timezone: cfg.timezone, locale: cfg.locale });
-  if (orderTaker || createdAt) {
-    rc.row(orderTaker ? `Order Taker: ${orderTaker}` : '', createdAt ? `Time: ${createdAt}` : '');
-  }
-  rc.divider();
+  const isDuplicate = !!data.duplicate;
+  const bannerLabel = isDuplicate
+    ? (L.duplicateKot || 'COPY')
+    : (isAddOn ? (L.addon || 'ADDON') : (L.newOrder || 'NEW'));
+
+  paintKotHeaderRaster(rc, {
+    kitchenName: data.kitchenName || L.kot || 'KOT',
+    bannerLabel,
+    orderId: getOrderId(order),
+    table: data.table ? String(data.table.name || '') + String(data.table.number || '') : '',
+    orderType: getOrderType(order),
+    orderTaker: getOrderUserName(order),
+    createdAt: getOrderCreatedAt(order, { timezone: cfg.timezone, locale: cfg.locale }),
+    labels: L,
+  });
+
+  rc.fixedLine(buildItemHeaderString(cfg), { align: 'left', style: 'bold' });
   const items = Array.isArray(data.items) ? data.items : [];
   items.forEach((it) => {
     const dish = it.item || it.dish || {};
-    const name = (dish.name || dish.title || '').slice(0, 28);
-    const qty = it.quantity != null ? it.quantity : 1;
-    rc.row(`${name} x${qty}`, '');
-    if (it.comments) rc.text(`>> ${String(it.comments).slice(0, 26)}`);
+    const row = {
+      name: dish.name || dish.title || '',
+      qty: it.quantity != null ? it.quantity : 1,
+      price: Number(it.price || 0),
+      total: Number(it.price || 0) * (it.quantity != null ? it.quantity : 1),
+      modifierLines: getOrderItemModifierLines(it),
+    };
+    rc.fixedLine(buildItemRowString(row, cfg), { align: 'left' });
+    if (it.comments) {
+      rc.fixedLine(` >> ${String(it.comments).slice(0, 26)}`, { align: 'left' });
+    }
+    if (Array.isArray(row.modifierLines)) {
+      row.modifierLines.forEach((line) => {
+        if (!line || line.name == null) return;
+        const depth = typeof line.depth === 'number' ? line.depth : 0;
+        const indent = '  '.repeat(1 + Math.max(0, depth));
+        rc.fixedLine(indent + String(line.name).trim(), { align: 'left' });
+      });
+    }
   });
-  rc.feed(1);
-  rc.text(formatPrintingTimestamp(cfg), { align: 'center' });
+
   const bottomFeed = Math.max(0, Number(cfg.bottomMargin) || 0);
   if (bottomFeed) rc.feed(bottomFeed);
+  rc.feed(1);
+  rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
   return rc.toPng();
 }
 
@@ -581,71 +648,74 @@ async function renderSummaryRaster(data, config) {
   if (topFeed) rc.feed(topFeed);
   paintBranding(rc, cfg);
   const titleTemplate = L.summaryTitle || 'Daily sales summary — {{date}}';
-  rc.text(titleTemplate.replace('{{date}}', s.date), { align: 'center', size: 'medium', bold: true });
+  rc.centered(titleTemplate.replace('{{date}}', s.date), { size: 'normal', style: 'bold-underline' });
   rc.divider();
-  const sect = (t) => rc.text(t, { align: 'center', bold: true });
+  const sect = (t) => {
+    rc.divider();
+    rc.centered(t, { size: 'normal', style: 'bold-underline' });
+  };
   sect(L.salesRevenue || '1. Sales revenue');
-  rc.row(L.exclusiveSales || 'Exclusive sales', formatMoney(s.exclusiveSales, sym));
-  rc.row(L.extras || 'Extras', formatMoney(s.totalExtras, sym));
-  rc.row(L.grossSales || 'Gross sales', formatMoney(s.grossSales, sym));
-  rc.row(L.itemDiscounts || 'Item discounts', formatMoney(s.itemDiscounts, sym));
-  rc.row(L.subtotalDiscounts || 'Subtotal discounts', formatMoney(s.subtotalDiscounts, sym));
-  rc.row(L.couponDiscounts || 'Coupon discounts', formatMoney(s.couponDiscounts, sym));
-  rc.row(L.discountsMinus || '(−) Discounts', formatMoney(s.discounts, sym));
-  rc.row(L.netSales || 'Net sales', formatMoney(s.netSales, sym));
-  rc.divider();
+  rc.lineLeftRight(L.exclusiveSales || 'Exclusive sales', formatMoney(s.exclusiveSales, sym));
+  rc.lineLeftRight(L.extras || 'Extras', formatMoney(s.totalExtras, sym));
+  rc.lineLeftRight(L.grossSales || 'Gross sales', formatMoney(s.grossSales, sym));
+  rc.lineLeftRight(L.itemDiscounts || 'Item discounts', formatMoney(s.itemDiscounts, sym));
+  rc.lineLeftRight(L.subtotalDiscounts || 'Subtotal discounts', formatMoney(s.subtotalDiscounts, sym));
+  rc.lineLeftRight(L.couponDiscounts || 'Coupon discounts', formatMoney(s.couponDiscounts, sym));
+  rc.lineLeftRight(L.discountsMinus || '(-) Discounts', formatMoney(s.discounts, sym));
+  rc.lineLeftRight(L.netSales || 'Net sales', formatMoney(s.netSales, sym));
   sect(L.surchargesTaxes || '2. Surcharges and taxes');
-  rc.row(L.serviceCharges || 'Service charges', formatMoney(s.serviceCharges, sym));
-  rc.row(L.taxes || 'Taxes', formatMoney(s.taxCollected, sym));
-  rc.row(L.totalRevenue || 'Total revenue', formatMoney(s.totalRevenue, sym), { bold: true });
-  rc.divider();
+  rc.lineLeftRight(L.serviceCharges || 'Service charges', formatMoney(s.serviceCharges, sym));
+  rc.lineLeftRight(L.taxes || 'Taxes', formatMoney(s.taxCollected, sym));
+  rc.lineLeftRight(L.totalRevenue || 'Total revenue', formatMoney(s.totalRevenue, sym), { style: 'bold-underline' });
   sect(L.settlementCashier || '3. Settlement and cashier');
-  rc.row(L.amountDueBeforeTips || 'Amount due (before tips)', formatMoney(s.amountDue, sym));
-  rc.row(L.tips || 'Tips', formatMoney(s.tips, sym));
-  rc.row(L.grandTotalDue || 'Grand total (due)', formatMoney(s.grandTotalDue, sym), { bold: true });
-  rc.row(L.amountCollected || 'Amount collected', formatMoney(s.amountCollected, sym));
-  rc.row(L.rounding || 'Rounding', formatMoney(s.rounding, sym));
-  rc.row(L.changeVariance || 'Change / variance', formatMoney(s.changeGiven, sym));
-  rc.divider();
+  rc.lineLeftRight(L.amountDueBeforeTips || 'Amount due (before tips)', formatMoney(s.amountDue, sym));
+  rc.lineLeftRight(L.tips || 'Tips', formatMoney(s.tips, sym));
+  rc.lineLeftRight(L.grandTotalDue || 'Grand total (due)', formatMoney(s.grandTotalDue, sym), { style: 'bold-underline' });
+  rc.lineLeftRight(L.amountCollected || 'Amount collected', formatMoney(s.amountCollected, sym));
+  rc.lineLeftRight(L.rounding || 'Rounding', formatMoney(s.rounding, sym));
+  rc.lineLeftRight(L.changeVariance || 'Change / variance', formatMoney(s.changeGiven, sym));
   sect(L.operationalControls || '4. Operational controls');
-  rc.row(L.voids || 'Voids', formatMoney(s.voids, sym));
-  rc.row(L.refunds || 'Refunds', formatMoney(s.refunds, sym));
-  rc.row(L.covers || 'Covers', formatNum(s.covers));
-  rc.row(L.averageCover || 'Average cover', formatMoney(s.averageCover, sym));
-  rc.row(L.ordersChecks || 'Orders / checks', formatNum(s.ordersCount));
-  rc.row(L.averageOrderCheck || 'Average order / check', formatMoney(s.averageOrderCheck, sym));
-  rc.divider();
+  rc.lineLeftRight(L.voids || 'Voids', formatMoney(s.voids, sym));
+  rc.lineLeftRight(L.refunds || 'Refunds', formatMoney(s.refunds, sym));
+  rc.lineLeftRight(L.covers || 'Covers', formatNum(s.covers));
+  rc.lineLeftRight(L.averageCover || 'Average cover', formatMoney(s.averageCover, sym));
+  rc.lineLeftRight(L.ordersChecks || 'Orders / checks', formatNum(s.ordersCount));
+  rc.lineLeftRight(L.averageOrderCheck || 'Average order / check', formatMoney(s.averageOrderCheck, sym));
   sect(L.productMix || '5. Product mix');
   const ex = s.exclusiveSales;
   if (!s.categoryMix || s.categoryMix.length === 0) {
-    rc.text(L.noCategoryData || 'No category data for this date.', { align: 'center' });
+    rc.fixedLine(L.noCategoryData || 'No category data for this date.', { align: 'left' });
   } else {
     s.categoryMix.forEach((category) => {
       const catShare = `${formatNum(pct(category.total, ex))}%`;
-      rc.row(
+      rc.lineLeftRight(
         String(category.name),
-        `${formatNum(category.quantity)} ${formatMoney(category.total, sym)} ${catShare}`,
-        { bold: true }
+        `${formatNum(category.quantity)}  ${formatMoney(category.total, sym)}  ${catShare}`,
+        { style: 'bold-underline' }
       );
       (category.dishes || []).forEach((dish) => {
         const dishShare = `${formatNum(pct(dish.total, ex))}%`;
-        rc.row(
+        rc.lineLeftRight(
           `  ${String(dish.name)}`,
-          `${formatNum(dish.quantity)} ${formatMoney(dish.total, sym)} ${dishShare}`
+          `${formatNum(dish.quantity)}  ${formatMoney(dish.total, sym)}  ${dishShare}`
         );
       });
     });
   }
-  rc.divider();
   sect(L.paymentTypes || '6. Payment types');
-  (s.paymentTypes || []).forEach((p) => {
-    rc.row(String(p.name || ''), formatMoney(p.total, sym));
+  (s.paymentTypes || []).filter((p) => Number(p.total) > 0).forEach((p) => {
+    const share = `${formatNum(pct(p.total, s.amountDue))}%`;
+    rc.lineLeftRight(String(p.name || ''), `${formatMoney(p.total, sym)}  ${share}`);
   });
+  if (cfg.showVatNumber && cfg.vatNumber) {
+    rc.centered(`${cfg.vatName}: ${cfg.vatNumber}`, { size: 'normal' });
+  }
   paintSections(rc, cfg.footerSections);
-  rc.feed(1);
-  rc.text(formatPrintingTimestamp(cfg), { align: 'center' });
   const bottomFeed = Math.max(0, Number(cfg.bottomMargin) || 0);
   if (bottomFeed) rc.feed(bottomFeed);
+  rc.feed(1);
+  rc.centered(formatPrintingTimestamp(cfg), { size: 'normal' });
+  rc.feed(3);
   return rc.toPng();
 }
 

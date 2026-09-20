@@ -180,6 +180,9 @@ export const SplitItems = ({
     if (!canSave) return;
 
     setIsSaving(true);
+    const allocatedInvoices: number[] = [];
+    const allocatedAutoIds: number[] = [];
+    let committed = false;
     try {
       await assertOrderMutationsAllowed(db).catch((err) => {
         // Closing guard needs the master DB; offline we let the local-first path proceed.
@@ -189,11 +192,15 @@ export const SplitItems = ({
       const groups = [];
       for (const split of actualSplits) {
         if (split.items.length === 0) continue;
+        const invoiceNumber = await posStore.consumeInvoiceNumber();
+        allocatedInvoices.push(invoiceNumber);
+        const autoId = await posStore.consumeAutoId();
+        allocatedAutoIds.push(autoId);
         groups.push({
           itemIds: split.items.map((item) => String(item.id)),
           // Reserved int ranges — never provisional strings.
-          invoiceNumber: await posStore.consumeInvoiceNumber(),
-          autoId: await posStore.consumeAutoId(),
+          invoiceNumber,
+          autoId,
           order: {
             covers: Math.ceil(order.covers / actualSplits.length) || 1,
             split: split.number,
@@ -210,6 +217,7 @@ export const SplitItems = ({
         userId: String(page.user.id),
         seed: { order, items: order.items },
       });
+      committed = true;
 
       postOrderTracking({
         module: "orders.split_by_items",
@@ -225,6 +233,12 @@ export const SplitItems = ({
       toast.success(t('split.toast.success', {count: children.length}));
       onClose?.();
     } catch (error) {
+      if (!committed) {
+        await Promise.all([
+          ...allocatedInvoices.map((value) => posStore.releaseNumber('invoice', value)),
+          ...allocatedAutoIds.map((value) => posStore.releaseNumber('auto_id', value)),
+        ]);
+      }
       console.error('Error creating split orders:', error);
       if ((error as any)?.code === 'NUMBERS_EXHAUSTED') {
         toast.error(t('payment:errors.numbersExhausted'));

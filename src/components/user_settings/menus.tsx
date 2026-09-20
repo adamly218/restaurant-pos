@@ -13,6 +13,7 @@ import {toRecordId} from "@/lib/utils.ts";
 import {useSecurity} from "@/hooks/useSecurity.ts";
 import {Menu} from "@/api/model/menu.ts";
 import {useTranslation} from 'react-i18next';
+import {posStore} from "@/infrastructure/pos-store/pos-store.ts";
 
 
 export const MenusSettings = () => {
@@ -55,6 +56,8 @@ export const MenusSettings = () => {
           });
 
           setSettingId(settings[0].id);
+        } else {
+          reset({ menus: [] });
         }
       } catch (e) {
         console.error("Error loading menu settings:", e);
@@ -87,6 +90,7 @@ export const MenusSettings = () => {
         ? values.menus.map((item: { value: string }) => toRecordId(item.value))
         : [];
 
+      let nextSettingId = settingId;
       if(settingId){
         await db.merge(settingId, {
           key: 'menus',
@@ -100,7 +104,20 @@ export const MenusSettings = () => {
           values: selectedMenus
         });
 
+        nextSettingId = setting.id;
         setSettingId(setting.id);
+      }
+
+      // Keep Dexie in sync — refreshCatalogIntoSettings reads from PosStore, not
+      // Surreal. Without this, the next sync refresh restores the old selection
+      // and blanks categories/dishes until a full cache reload.
+      if (nextSettingId) {
+        await posStore.upsertCatalogRecords(Tables.settings, [{
+          id: String(nextSettingId),
+          key: 'menus',
+          is_global: true,
+          values: selectedMenus.map((id) => String(id)),
+        }]);
       }
 
       let resolvedMenus: Menu[] = [];
