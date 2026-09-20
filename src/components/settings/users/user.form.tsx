@@ -4,6 +4,8 @@ import { Button } from "@/components/common/input/button.tsx";
 import { IconTooltipButton } from "@/components/common/input/icon.tooltip.button.tsx";
 import { Checkbox } from "@/components/common/input/checkbox.tsx";
 import { Controller, useForm } from "react-hook-form";
+import { useAtom } from "jotai";
+import { appPage } from "@/store/jotai.ts";
 import { useDB } from "@/api/db/db.ts";
 import { Tables } from "@/api/db/tables.ts";
 import { toast } from 'sonner';
@@ -28,6 +30,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus } from "@fortawesome/free-solid-svg-icons";
 import { UserRoleForm } from "@/components/settings/users/roles/role.form.tsx";
 import { ShiftForm } from "@/components/settings/users/shifts/shift.form.tsx";
+import { PROTECTED_LAST_ADMIN_ROLE_NAME } from "@/lib/access.rules.ts";
 
 interface Props {
   open: boolean
@@ -150,6 +153,7 @@ export const UserForm = ({
   }, [login, createEmployee, isCreateMode, setValue, getValues]);
 
   const db = useDB();
+  const [page] = useAtom(appPage);
   const {
     data: roleData,
     fetchData: fetchRoles,
@@ -183,6 +187,31 @@ export const UserForm = ({
     if(vals.login_method === "form" && !vals.id && !vals.password){
       toast.error(t('toast:admin.passwordRequired'));
       return;
+    }
+
+    if (data?.id) {
+      const isSelfEdit = recordIdToString(page.user?.id) === recordIdToString(data.id);
+      const wasProtectedRole = data.user_role?.name === PROTECTED_LAST_ADMIN_ROLE_NAME;
+      // Compare role IDs directly rather than trusting `selectedRole` (a
+      // lookup in roleData, which may still be loading) — an ID that didn't
+      // change can never count as "leaving" the role, regardless of whether
+      // roleData has resolved yet.
+      const roleIdChanged = recordIdToString(selectedRoleId) !== recordIdToString(data.user_role?.id);
+
+      if (isSelfEdit && wasProtectedRole && roleIdChanged) {
+        const [otherHolders] = await db.query(
+          `SELECT count() FROM ${Tables.users} WHERE user_role = $roleId AND deleted_at = none AND id != $selfId GROUP ALL`,
+          { roleId: new StringRecordId(data.user_role!.id), selfId: new StringRecordId(data.id) },
+        ) as [{ count: number }[]];
+
+        if (!otherHolders?.[0]?.count) {
+          toast.error(t('toast:admin.lastMasterRole', {
+            role: PROTECTED_LAST_ADMIN_ROLE_NAME,
+            defaultValue: `You're the only ${PROTECTED_LAST_ADMIN_ROLE_NAME} user — assign another user that role first, or the system will have no one left who can manage it.`,
+          }));
+          return;
+        }
+      }
     }
 
     const displayName = `${values.first_name} ${values.last_name}`;

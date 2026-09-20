@@ -6,6 +6,11 @@ export type AccessRuleModule = {
   children: string[];
 };
 
+/** The one role expected to always have someone assigned — losing the last
+ *  holder locks everyone out of admin/settings with no way back in. Used to
+ *  block both self-demotion and deletion of the last user in this role. */
+export const PROTECTED_LAST_ADMIN_ROLE_NAME = "Master";
+
 /** Hierarchical permission IDs: section | section.resource | section.resource.action */
 export const ACCESS_RULE_MODULES: Record<string, AccessRuleModule> = {
   menu: {

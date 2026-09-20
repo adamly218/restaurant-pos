@@ -1,5 +1,6 @@
 import {ID, KeyValue} from "@/api/model/common.ts";
 import {User} from "@/api/model/user.ts";
+import {Shift} from "@/api/model/shift.ts";
 import { DateTime } from "surrealdb";
 
 export interface DayClosing extends ID {
@@ -20,4 +21,6 @@ export interface DayClosing extends ID {
   payments_data?: KeyValue[]
   status?: string
   terminal_cash?: KeyValue[]
+  /** Which shift this closing belongs to — a day can have one per shift. */
+  shift?: Shift | null
 }
