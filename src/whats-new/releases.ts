@@ -7,6 +7,15 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-20',
+    title: 'Desktop offline shell (Tauri)',
+    items: [
+      'POSR Desktop can run without Docker: SurrealDB, gateway, print, payment, tracking, API, and sync start as local sidecars inside the Tauri app.',
+      'First-run setup lets you import any .surql file (full schema, demo data, or patches). Settings → Import SurrealQL can apply updates later.',
+      'Linux and Windows installers can package Node + Surreal binaries and service trees (see desktop/README.md).',
+    ],
+  },
+  {
     date: '2026-09-14',
     title: 'Orders card hydrate and ghost checks',
     items: [
