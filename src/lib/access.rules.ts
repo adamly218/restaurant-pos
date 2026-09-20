@@ -637,6 +637,16 @@ export const normalizeModules = (modules: string[] | undefined | null): string[]
   return [...next];
 };
 
+/**
+ * A role counts as "full access" when it grants every known canonical
+ * permission — used to guard against deleting the last such role and
+ * leaving nothing able to reach admin/settings.
+ */
+export const isFullAccessRoleModules = (modules: string[] | undefined | null): boolean => {
+  const normalized = new Set(normalizeModules(modules));
+  return [...KNOWN_MODULE_IDS].every((id) => normalized.has(id));
+};
+
 /** Candidates for DB `IN` checks during legacy→new transition. */
 export const moduleMatchCandidates = (module?: string): string[] => {
   if (!module) return [];
