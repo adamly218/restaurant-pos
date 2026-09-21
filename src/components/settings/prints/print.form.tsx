@@ -137,7 +137,7 @@ export const PrintForm = ({
   const [logoRemoved, setLogoRemoved] = useState(false);
 
   const db = useDB();
-  const {handleSubmit, control, reset, setValue, watch} = useForm<PrintFormValues>();
+  const {handleSubmit, control, reset, setValue, getValues, watch} = useForm<PrintFormValues>();
   const watchedPrintMode = watch('printMode');
   const watchedPaperWidthMm = watch('paperWidthMm');
   const watchedLogoWidth = watch('logoWidth');
@@ -550,6 +550,7 @@ export const PrintForm = ({
                           const raw = e.target.value;
                           field.onChange(raw === '' ? 0 : Number(raw));
                         }}
+                        allowNegative
                       />
                       <p className="text-xs text-muted mt-1">{t('forms.logoOffsetXHint')}</p>
                     </div>
@@ -563,12 +564,16 @@ export const PrintForm = ({
               control={control}
               name="headerSections"
               label={t('forms.headerSections')}
+              setValue={setValue}
+              getValues={getValues}
             />
 
             <ReceiptSectionEditor
               control={control}
               name="footerSections"
               label={t('forms.footerSections')}
+              setValue={setValue}
+              getValues={getValues}
             />
 
             <div className="grid md:grid-cols-3 gap-3">
