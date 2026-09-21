@@ -5,9 +5,10 @@ import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faPlus, faTimes} from "@fortawesome/free-solid-svg-icons";
 import {Switch} from "@/components/common/input/switch.tsx";
 import {Input} from "@/components/common/input/input.tsx";
+import {Textarea} from "@/components/common/input/textarea.tsx";
 import {Button} from "@/components/common/input/button.tsx";
 import {DeleteConfirm} from "@/components/common/table/delete.confirm.tsx";
-import {emptyReceiptSection, ReceiptSection} from "@/api/model/receipt-section.ts";
+import {DEFAULT_SECTION_IMAGE_PX, emptyReceiptSection, ReceiptSection} from "@/api/model/receipt-section.ts";
 import {detectMimeType, toArrayBuffer} from "@/utils/files.ts";
 
 interface Props {
@@ -180,7 +181,7 @@ export const ReceiptSectionEditor = ({control, name, label}: Props) => {
               )}
             />
 
-            <div className="flex-1">
+            <div className="flex-1 min-w-[200px]">
               <Controller
                 name={`${name}.${index}.type`}
                 control={control}
@@ -223,11 +224,14 @@ export const ReceiptSectionEditor = ({control, name, label}: Props) => {
                       }
 
                       return (
-                        <Input
-                          label={t('forms.sectionContent')}
-                          value={typeof contentField.value === 'string' ? contentField.value : ''}
-                          onChange={contentField.onChange}
-                        />
+                        <div>
+                          <label className="">{t('forms.sectionContent')}</label>
+                          <Textarea
+                            className="w-full min-h-[72px]"
+                            value={typeof contentField.value === 'string' ? contentField.value : ''}
+                            onChange={contentField.onChange}
+                          />
+                        </div>
                       );
                     }}
                   />
@@ -240,6 +244,55 @@ export const ReceiptSectionEditor = ({control, name, label}: Props) => {
               onConfirm={() => handleRemoveSection(index)}
             />
           </div>
+
+          <Controller
+            name={`${name}.${index}.type`}
+            control={control}
+            render={({field: typeField}) => (
+              typeField.value === 'image' ? (
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div>
+                    <Controller
+                      name={`${name}.${index}.width`}
+                      control={control}
+                      render={({field: f}) => (
+                        <div>
+                          <Input
+                            label={t('forms.sectionImageWidth')}
+                            type="number"
+                            value={f.value ?? DEFAULT_SECTION_IMAGE_PX}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              f.onChange(raw === '' ? DEFAULT_SECTION_IMAGE_PX : Number(raw));
+                            }}
+                          />
+                        </div>
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <Controller
+                      name={`${name}.${index}.height`}
+                      control={control}
+                      render={({field: f}) => (
+                        <div>
+                          <Input
+                            label={t('forms.sectionImageHeight')}
+                            type="number"
+                            value={f.value ?? DEFAULT_SECTION_IMAGE_PX}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              f.onChange(raw === '' ? DEFAULT_SECTION_IMAGE_PX : Number(raw));
+                            }}
+                          />
+                        </div>
+                      )}
+                    />
+                  </div>
+                </div>
+              ) : null
+            )}
+          />
         </div>
       ))}
     </div>
