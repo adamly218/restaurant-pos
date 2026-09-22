@@ -17,6 +17,7 @@ import {executeSettingsDelete} from "@/lib/settings-delete.service.ts";
 import {useSecurity} from "@/hooks/useSecurity.ts";
 import {getAccessRuleChildLabel} from "@/lib/access.rules.i18n.ts";
 import {isFullAccessRoleModules} from "@/lib/access.rules.ts";
+import {toRecordId} from "@/lib/utils.ts";
 import {toast} from "sonner";
 
 export const AdminUserRoles = () => {
@@ -92,7 +93,7 @@ export const AdminUserRoles = () => {
     if (isFullAccessRoleModules(role.roles)) {
       const [otherFullAccessRoles] = await db.query(
         `SELECT roles FROM ${Tables.user_roles} WHERE deleted_at = none AND id != $selfId`,
-        { selfId: id },
+        { selfId: toRecordId(id) },
       ) as [UserRole[]];
 
       const hasAnotherFullAccessRole = (otherFullAccessRoles || []).some(

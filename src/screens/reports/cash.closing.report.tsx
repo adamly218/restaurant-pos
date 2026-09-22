@@ -4,7 +4,8 @@ import {ReportsLayout} from "@/screens/partials/reports.layout.tsx";
 import {useDB} from "@/api/db/db.ts";
 import {Tables} from "@/api/db/tables.ts";
 import {DayClosing} from "@/api/model/day_closing.ts";
-import {cn, withCurrency} from "@/lib/utils.ts";
+import {Button} from "@/components/common/input/button.tsx";
+import {cn, toRecordId, withCurrency} from "@/lib/utils.ts";
 import {toLuxonDateTime, toSurrealDateTime} from "@/lib/datetime.ts";
 
 const parseFilters = () => {
@@ -95,6 +96,7 @@ export const CashClosingReport = () => {
 
       try {
         setTransactionsLoading(true);
+        const shiftId = closing.shift?.id ? toRecordString(closing.shift.id) : null;
         const [rows] = await queryRef.current(
           `
             SELECT id, invoice_number, created_at, payments
@@ -102,12 +104,14 @@ export const CashClosingReport = () => {
             WHERE created_at >= $start
               AND created_at <= $end
               AND status = 'Paid'
+              ${shiftId ? `AND (cashier.user_shift = $shiftId OR user.user_shift = $shiftId)` : ""}
             ORDER BY created_at ASC
             FETCH payments, payments.payment_type
           `,
           {
             start: toSurrealDateTime(closing.date_from),
             end: toSurrealDateTime(closing.date_to),
+            ...(shiftId ? {shiftId: toRecordId(shiftId)} : {}),
           },
         );
 
@@ -143,7 +147,7 @@ export const CashClosingReport = () => {
     };
 
     void fetchTransactions();
-  }, [closing?.id, closing?.date_from, closing?.date_to]);
+  }, [closing?.id, closing?.date_from, closing?.date_to, closing?.shift?.id]);
 
   const subtitle = selectedDate || "Selected day";
   const openingBalance = Number(closing?.opening_balance || 0);
@@ -188,20 +192,20 @@ export const CashClosingReport = () => {
               const id = toRecordString(item.id);
               const isSelected = id === selectedId;
               return (
-                <button
+                <Button
                   key={id}
                   type="button"
+                  flat
+                  variant={isSelected ? "primary" : "secondary"}
                   onClick={() => setSelectedId(id)}
                   className={cn(
-                    "px-4 py-2 rounded-lg border text-sm font-medium transition-colors",
-                    isSelected
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-surface-elevated border-border text-foreground hover:bg-surface"
+                    "px-4 py-2 rounded-lg border text-sm font-medium",
+                    !isSelected && "bg-surface-elevated border-border text-foreground"
                   )}
                 >
                   {closingTabLabel(item, t)}
                   <span className="ml-2 text-xs opacity-75 capitalize">({item.status || "-"})</span>
-                </button>
+                </Button>
               );
             })}
           </div>

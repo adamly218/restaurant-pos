@@ -141,17 +141,21 @@ export const Closing = () => {
 
   const fetchCyclePayments = useCallback(async () => {
     try {
+      // When the closer has a shift, only count that shift's orders so each
+      // shift closing stores its own payment totals instead of the full day.
       const [result] = await db.query(`
           SELECT payments
           FROM order
           WHERE created_at >= $start
             AND created_at <= $end
             AND status = 'Paid'
+            ${currentShiftId ? `AND (cashier.user_shift = $shiftId OR user.user_shift = $shiftId)` : ""}
               FETCH payments
               , payments.payment_type
       `, {
         start: toSurrealDateTime(closingWindow.date_from),
         end: toSurrealDateTime(closingWindow.date_to),
+        ...(currentShiftId ? {shiftId: toRecordId(currentShiftId)} : {}),
       });
 
       return aggregateAppliedPaymentsByTypeId((result as any[]) ?? []);
@@ -159,7 +163,7 @@ export const Closing = () => {
       console.error("Error fetching closing-window payments:", error);
       return new Map<string, number>();
     }
-  }, [closingWindow.date_from, closingWindow.date_to]);
+  }, [closingWindow.date_from, closingWindow.date_to, currentShiftId]);
 
   const hydrateTerminals = useCallback((source: ClosingModel | null) => {
     const sourceTerminals = source?.terminal_cash && source.terminal_cash.length > 0
