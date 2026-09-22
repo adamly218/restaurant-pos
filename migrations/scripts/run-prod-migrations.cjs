@@ -87,6 +87,7 @@ const MIGRATION_PLAN = [
     backfill: 'backfill-security-alerts-access.cjs',
   },
   { id: '2026_09_04_terminal_sync', file: '2026_09_04_terminal_sync.surql' },
+  { id: '2026_09_05_delivery_menu_function', file: '2026_09_05_delivery_menu_function.surql' },
   { id: '2026_09_06_sync_schemaless_reset', file: '2026_09_06_sync_schemaless_reset.surql' },
   { id: '2026_09_06_order_sync_ownership_fields', file: '2026_09_06_order_sync_ownership_fields.surql' },
   { id: '2026_09_12_refund_print_settings', file: '2026_09_12_refund_print_settings.surql' },

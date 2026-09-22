@@ -7,6 +7,22 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-21',
+    title: 'Print logo size and header wrap',
+    items: [
+      'Print settings let you set store logo width, height, and common size presets; header/footer images have their own width and height.',
+      'Logos and section images stretch to the configured size (default still 150×150 when unset).',
+      'Header and footer text sections wrap long paragraphs across multiple receipt lines instead of cutting after one row.',
+    ],
+  },
+  {
+    date: '2026-09-21',
+    title: 'Schema catch-up for terminal sync',
+    items: [
+      'Fresh installs and production migrations now include PosStore sync tables, order ownership/version fields, the delivery menu function, and related security/accounting schema that was missing from the latest dump.',
+    ],
+  },
+  {
     date: '2026-09-20',
     title: 'Closing payment totals',
     items: [
