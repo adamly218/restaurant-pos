@@ -7,6 +7,14 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-23',
+    title: 'AI Assistant user guides',
+    items: [
+      'The floating AI assistant can look up end-user guide chapters (how-to steps) in your language when you ask how to use a screen or feature.',
+      'Guide answers follow the documented UI steps instead of inventing menus; live sales and inventory numbers still use data tools.',
+    ],
+  },
+  {
     date: '2026-09-21',
     title: 'Print logo size and header wrap',
     items: [
