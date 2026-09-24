@@ -8,8 +8,9 @@ import {withCurrency, formatNumber} from "@/lib/utils.ts";
 import {calculateOrderItemPrice} from "@/lib/cart.ts";
 import {getOrderFilteredItems} from "@/lib/order.ts";
 import {DateTime} from "luxon";
-import { toLuxonDateTime } from "@/lib/datetime.ts";
+import { getAppTimezone, toLuxonDateTime } from "@/lib/datetime.ts";
 import {
+  buildCreatedAtDateConditions,
   buildNestedRecordAnyCondition,
   buildRecordInsideCondition,
 } from "@/api/reports/shared/query.ts";
@@ -50,9 +51,10 @@ const parseFilters = (): ReportFilters => {
 };
 
 const parseWeekParams = (weekParam?: string) => {
-  let weekStart = weekParam ? DateTime.fromISO(weekParam) : DateTime.now();
+  const timezone = getAppTimezone();
+  let weekStart = weekParam ? DateTime.fromISO(weekParam, {zone: timezone}) : DateTime.now().setZone(timezone);
   if (!weekStart.isValid) {
-    weekStart = DateTime.now();
+    weekStart = DateTime.now().setZone(timezone);
   }
   weekStart = weekStart.startOf('week');
   const weekEnd = weekStart.plus({days: 6});
@@ -103,15 +105,11 @@ export const ProductMixWeeklyReport = () => {
         setLoading(true);
         setError(null);
 
-        const conditions: string[] = [];
-        const params: Record<string, any> = {
-          start: queryStart,
-          end: queryEnd,
-        };
-
         // Week date range filter
-        conditions.push(`time::format(created_at, "${import.meta.env.VITE_DB_DATABASE_FORMAT}") >= $start`);
-        conditions.push(`time::format(created_at, "${import.meta.env.VITE_DB_DATABASE_FORMAT}") <= $end`);
+        const {conditions, params} = buildCreatedAtDateConditions(
+          {startDate: queryStart, endDate: queryEnd},
+          "created_at",
+        );
 
         const userFilter = buildRecordInsideCondition('user', filters.orderTakerIds, 'userIds');
         if (userFilter.condition) {

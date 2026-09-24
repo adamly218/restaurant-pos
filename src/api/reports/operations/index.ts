@@ -1,22 +1,11 @@
 import {Tables} from "@/api/db/tables.ts";
-import {buildCreatedAtDateConditions, unwrapQueryResult} from "@/api/reports/shared/query.ts";
+import {buildCreatedAtDateConditions, toReportBoundaryUtcIso, unwrapQueryResult} from "@/api/reports/shared/query.ts";
 import type {DateRangeFilter, DbClient} from "@/api/reports/shared/types.ts";
 import {safeNumber} from "@/lib/utils.ts";
 import {recordToString} from "@/api/reports/shared/records.ts";
 
 export const getExpenses = async (db: DbClient, options: DateRangeFilter) => {
-  const conditions: string[] = [];
-  const params: Record<string, string> = {};
-  const dbFormat = import.meta.env.VITE_DB_DATABASE_FORMAT as string;
-
-  if (options.startDate) {
-    conditions.push(`time::format(date_from, "${dbFormat}") >= $startDate`);
-    params.startDate = options.startDate;
-  }
-  if (options.endDate) {
-    conditions.push(`time::format(date_from, "${dbFormat}") <= $endDate`);
-    params.endDate = options.endDate;
-  }
+  const {conditions, params} = buildCreatedAtDateConditions(options, "date_from");
 
   const query = `
     SELECT * FROM ${Tables.closings}
@@ -103,13 +92,13 @@ export const getActivityLog = async (
 };
 
 export const getCashClosing = async (db: DbClient, options: {date?: string}) => {
-  const dbDateFormat = import.meta.env.VITE_DB_DATABASE_DATE_FORMAT as string;
-  const selectedDate = options.date;
+  const rangeStart = toReportBoundaryUtcIso(options.date);
+  const rangeEnd = toReportBoundaryUtcIso(options.date, {endOfBareDate: true});
 
-  const query = selectedDate
+  const query = rangeStart && rangeEnd
     ? `
       SELECT * FROM ${Tables.closings}
-      WHERE time::format(date_from, "${dbDateFormat}") = $selectedDate
+      WHERE date_from >= <datetime>$rangeStart AND date_from < <datetime>$rangeEnd
       ORDER BY created_at DESC
       LIMIT 1
       FETCH closed_by, opened_by
@@ -129,7 +118,7 @@ export const getCashClosing = async (db: DbClient, options: {date?: string}) => 
     payments_data?: Array<{amount?: number; payment_type?: {type?: string}}>;
     date_from?: unknown;
     date_to?: unknown;
-  }>(await db.query(query, selectedDate ? {selectedDate} : {}));
+  }>(await db.query(query, rangeStart && rangeEnd ? {rangeStart, rangeEnd} : {}));
 
   const closing = rows[0];
   if (!closing) {

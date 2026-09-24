@@ -7,7 +7,7 @@ import {DayClosing} from "@/api/model/day_closing.ts";
 import {OrderStatus} from "@/api/model/order.ts";
 import {Button} from "@/components/common/input/button.tsx";
 import {cn, toRecordId, withCurrency} from "@/lib/utils.ts";
-import {toLuxonDateTime, toSurrealDateTime} from "@/lib/datetime.ts";
+import {getBusinessDayUnixRange, toLuxonDateTime, toSurrealDateTime} from "@/lib/datetime.ts";
 
 const TRANSACTION_STATUSES = [OrderStatus.Paid, OrderStatus.Refunded, OrderStatus.Cancelled];
 
@@ -68,14 +68,28 @@ export const CashClosingReport = () => {
         setLoading(true);
         setError(null);
 
+        if (!selectedDate) {
+          setClosings([]);
+          setSelectedId(null);
+          return;
+        }
+
+        // time::format(date_from, ...) runs on the raw UTC instant, not the app's
+        // configured business timezone — a closing near midnight in that timezone
+        // would match the wrong calendar day. Compare against a real UTC range
+        // (start/end of the business day in the app timezone) instead.
+        const {startUnix, endUnix} = getBusinessDayUnixRange(selectedDate);
+        const rangeStart = new Date(startUnix * 1000).toISOString();
+        const rangeEnd = new Date(endUnix * 1000).toISOString();
+
         const [rows] = await queryRef.current(
           `
             SELECT * FROM ${Tables.closings}
-            WHERE time::format(date_from, "${import.meta.env.VITE_DB_DATABASE_DATE_FORMAT}") = $selectedDate
+            WHERE date_from >= <datetime>$rangeStart AND date_from < <datetime>$rangeEnd
             ORDER BY date_from ASC, created_at ASC
             FETCH closed_by, opened_by, shift
           `,
-          {selectedDate}
+          {rangeStart, rangeEnd}
         );
 
         const list = (Array.isArray(rows) ? rows : []) as DayClosing[];
