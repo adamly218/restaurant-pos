@@ -92,6 +92,7 @@ const MIGRATION_PLAN = [
   { id: '2026_09_06_order_sync_ownership_fields', file: '2026_09_06_order_sync_ownership_fields.surql' },
   { id: '2026_09_12_refund_print_settings', file: '2026_09_12_refund_print_settings.surql' },
   { id: '2026_09_18_printer_print_mode_paper_width', file: '2026_09_18_printer_print_mode_paper_width.surql' },
+  { id: '2026_09_20_day_closing_shift', file: '2026_09_20_day_closing_shift.surql' },
 ];
 
 const rows = (result) => {

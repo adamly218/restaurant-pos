@@ -1,5 +1,6 @@
 import { ID } from "@/api/model/common.ts";
 import { PaymentType } from "@/api/model/payment_type.ts";
+import { Shift } from "@/api/model/shift.ts";
 import { DateTime } from "surrealdb";
 
 export interface TerminalCash {
@@ -46,4 +47,7 @@ export interface Closing extends ID {
   closed_at?: DateTime;
   closed_by?: unknown;
   status: 'draft' | 'completed';
+  /** Which shift this closing belongs to — lets multiple shifts in one
+   *  closing-cycle window each keep their own record instead of sharing one. */
+  shift?: Shift | null;
 }

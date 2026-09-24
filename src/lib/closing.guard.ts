@@ -17,6 +17,7 @@ import {toSurrealDateTime} from "@/lib/datetime.ts";
 import {OrderStatus} from "@/api/model/order.ts";
 import {getCatalogTable} from "@/infrastructure/pos-store/catalog.ts";
 import type {Setting} from "@/api/model/setting.ts";
+import {toRecordId} from "@/lib/utils.ts";
 
 type DBLike = {
   query: (sql: string, params?: Record<string, unknown>) => Promise<unknown[][]>;
@@ -38,20 +39,32 @@ export const getCycleEndedMessage = (cycleEndedAt: Date) => {
   return i18n.t("closing:guard.cycleEnded", {time: formatClosingCycleTime(cycleEndedAt)});
 };
 
+/**
+ * `shiftId` scopes the lookup to one shift's own closing within the window,
+ * so a second shift starting a closing the same day gets its own record
+ * instead of finding (and overwriting) the first shift's. `undefined` means
+ * "don't care" (any shift); `null` means "only the no-shift record" — pass
+ * the value from the caller's current user's shift as-is.
+ */
 export const getClosingRecordForWindow = async (
   db: DBLike,
-  window: ClosingCycleWindow
+  window: ClosingCycleWindow,
+  shiftId?: string | null
 ): Promise<Closing | null> => {
+  const scopeToShift = shiftId !== undefined;
   const [result] = await db.query(
     `
       SELECT *
       FROM ${Tables.closings}
       WHERE date_from = $dateFrom
+        ${scopeToShift ? (shiftId ? "AND shift = $shiftId" : "AND shift = NONE") : ""}
       ORDER BY created_at DESC
       LIMIT 1
+      FETCH shift
     `,
     {
       dateFrom: toSurrealDateTime(window.date_from),
+      ...(scopeToShift && shiftId ? {shiftId: toRecordId(shiftId)} : {}),
     }
   );
 
@@ -62,19 +75,52 @@ export const getClosingRecordForWindow = async (
   return result[0] as Closing;
 };
 
-export const getCurrentCycleClosing = async (db: DBLike, now: Date = new Date()): Promise<Closing | null> => {
-  const {window} = await resolveClosingWindow(db, now);
-  return getClosingRecordForWindow(db, window);
+/** All closings for a window, one per shift — used to list/report every
+ *  shift's closing for a day instead of just the latest. */
+export const getClosingRecordsForWindow = async (
+  db: DBLike,
+  window: ClosingCycleWindow
+): Promise<Closing[]> => {
+  const [result] = await db.query(
+    `
+      SELECT *
+      FROM ${Tables.closings}
+      WHERE date_from = $dateFrom
+      ORDER BY created_at ASC
+      FETCH shift
+    `,
+    {
+      dateFrom: toSurrealDateTime(window.date_from),
+    }
+  );
+
+  return Array.isArray(result) ? (result as Closing[]) : [];
 };
 
+export const getCurrentCycleClosing = async (
+  db: DBLike,
+  now: Date = new Date(),
+  shiftId?: string | null
+): Promise<Closing | null> => {
+  const {window} = await resolveClosingWindow(db, now);
+  return getClosingRecordForWindow(db, window, shiftId);
+};
+
+/**
+ * Order-taking gate: ANY shift's completed closing for the window ends the
+ * business day for everyone, regardless of who closed it — intentionally
+ * unscoped by shift (unlike getCurrentCycleClosing, used by the Closing
+ * screen itself to find/create the current user's own record).
+ */
 export const isCurrentCycleClosed = async (db: DBLike, now: Date = new Date()): Promise<boolean> => {
   const {config} = await loadClosingCycleConfig(db);
   if (!isClosingCycleEnabled(config)) {
     return false;
   }
 
-  const closing = await getCurrentCycleClosing(db, now);
-  return closing?.status === "completed";
+  const {window} = await resolveClosingWindow(db, now);
+  const closings = await getClosingRecordsForWindow(db, window);
+  return closings.some((closing) => closing.status === "completed");
 };
 
 async function loadClosingCycleConfigLocal(): Promise<{

@@ -1,7 +1,7 @@
 import {Layout} from "@/screens/partials/layout.tsx";
 import React, {useCallback, useEffect, useMemo, useState} from "react";
 import {Button} from "@/components/common/input/button.tsx";
-import {DENOMINATION_COINS, DENOMINATION_NOTES, formatNumber, withCurrency} from "@/lib/utils.ts";
+import {DENOMINATION_COINS, DENOMINATION_NOTES, formatNumber, toRecordId, withCurrency} from "@/lib/utils.ts";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faPlus, faPrint, faSave, faTrash} from "@fortawesome/free-solid-svg-icons";
 import {useDB} from "@/api/db/db.ts";
@@ -35,6 +35,7 @@ import { IconTooltipButton } from "@/components/common/input/icon.tooltip.button
 import { DocumentTitle } from "@/components/common/document-title.tsx";
 import { publishDayClosed } from "@/integrations/events/publish/ops.ts";
 import { entityAfterWrite } from "@/integrations/events/publish/entity.ts";
+import { recordIdToString } from "@/api/reports/shared/records.ts";
 
 const DEFAULT_TERMINALS: TerminalCash[] = [
   {terminal_id: "terminal_1", terminal_name: "Terminal 1", cash_amount: 0},
@@ -86,6 +87,13 @@ export const Closing = () => {
   const [existingClosing, setExistingClosing] = useState<ClosingModel | null>(null);
   const [isClosingCompleted, setIsClosingCompleted] = useState(false);
 
+  // Scopes the closing record to the logged-in user's shift so a second
+  // shift starting a closing the same day gets its own record instead of
+  // continuing (and overwriting) the first shift's.
+  const currentShiftId = page.user?.user_shift?.id
+    ? recordIdToString(page.user.user_shift.id)
+    : null;
+
   const {data: paymentTypesData} = useApi<SettingsData<PaymentType>>(
     Tables.payment_types,
     ['deleted_at = none'],
@@ -133,17 +141,21 @@ export const Closing = () => {
 
   const fetchCyclePayments = useCallback(async () => {
     try {
+      // When the closer has a shift, only count that shift's orders so each
+      // shift closing stores its own payment totals instead of the full day.
       const [result] = await db.query(`
           SELECT payments
           FROM order
           WHERE created_at >= $start
             AND created_at <= $end
             AND status = 'Paid'
+            ${currentShiftId ? `AND (cashier.user_shift = $shiftId OR user.user_shift = $shiftId)` : ""}
               FETCH payments
               , payments.payment_type
       `, {
         start: toSurrealDateTime(closingWindow.date_from),
         end: toSurrealDateTime(closingWindow.date_to),
+        ...(currentShiftId ? {shiftId: toRecordId(currentShiftId)} : {}),
       });
 
       return aggregateAppliedPaymentsByTypeId((result as any[]) ?? []);
@@ -151,7 +163,7 @@ export const Closing = () => {
       console.error("Error fetching closing-window payments:", error);
       return new Map<string, number>();
     }
-  }, [closingWindow.date_from, closingWindow.date_to]);
+  }, [closingWindow.date_from, closingWindow.date_to, currentShiftId]);
 
   const hydrateTerminals = useCallback((source: ClosingModel | null) => {
     const sourceTerminals = source?.terminal_cash && source.terminal_cash.length > 0
@@ -187,7 +199,7 @@ export const Closing = () => {
 
     setLoading(true);
     try {
-      const cycleClosing = await getCurrentCycleClosing(db);
+      const cycleClosing = await getCurrentCycleClosing(db, new Date(), currentShiftId);
       setExistingClosing(cycleClosing);
       setIsClosingCompleted(cycleClosing?.status === "completed");
 
@@ -203,7 +215,7 @@ export const Closing = () => {
     } finally {
       setLoading(false);
     }
-  }, [hydratePayments, hydrateTerminals, paymentTypes.length]);
+  }, [hydratePayments, hydrateTerminals, paymentTypes.length, currentShiftId]);
 
   const refreshClosingWindow = useCallback(async () => {
     const resolved = await resolveClosingWindow(db, new Date());
@@ -404,7 +416,7 @@ export const Closing = () => {
       const resolved = await resolveClosingWindow(db, new Date());
       const windowForSave = resolved.window;
 
-      const closingData: Omit<ClosingModel, "id"> = {
+      const closingData: Omit<ClosingModel, "id" | "shift"> & { shift?: unknown } = {
         date_from: windowForSave.date_from,
         date_to: windowForSave.date_to,
         cash_added: pettyCash,
@@ -422,6 +434,10 @@ export const Closing = () => {
         total_cash: totalCash,
         total_other_payments: totalOtherPayments,
         net_amount: netAmount,
+        // Field is `option<record<shift>>` — SurrealDB accepts NONE (an
+        // omitted key) but rejects an explicit NULL, so leave it out
+        // entirely rather than setting null when there's no shift.
+        ...(currentShiftId ? {shift: toRecordId(currentShiftId)} : {}),
         ...(complete ? {closed_at: nowSurrealDateTime()} : {}),
       };
 

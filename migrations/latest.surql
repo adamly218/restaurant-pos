@@ -409,6 +409,7 @@ DEFINE FIELD opened_by ON day_closing TYPE none | record<user> | null PERMISSION
 DEFINE FIELD opening_balance ON day_closing TYPE none | float | null PERMISSIONS FULL;
 DEFINE FIELD payments_data ON day_closing TYPE any PERMISSIONS FULL;
 DEFINE FIELD previous_day_balance ON day_closing TYPE none | float | null PERMISSIONS FULL;
+DEFINE FIELD shift ON day_closing TYPE none | record<shift> | null PERMISSIONS FULL;
 DEFINE FIELD status ON day_closing TYPE none | string | null PERMISSIONS FULL;
 DEFINE FIELD terminal_cash ON day_closing TYPE any PERMISSIONS FULL;
 DEFINE FIELD total_cash ON day_closing TYPE none | float | null PERMISSIONS FULL;
@@ -416,6 +417,7 @@ DEFINE FIELD total_other_payments ON day_closing TYPE none | float | null PERMIS
 
 DEFINE INDEX dc_date_from ON day_closing FIELDS date_from;
 DEFINE INDEX dc_created_at ON day_closing FIELDS created_at;
+DEFINE INDEX dc_date_from_shift ON day_closing FIELDS date_from, shift;
 
 
 

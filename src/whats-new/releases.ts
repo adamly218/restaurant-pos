@@ -15,6 +15,16 @@ export const RELEASES: ReleaseNotes[] = [
     ],
   },
   {
+    date: '2026-09-22',
+    title: 'Last admin guard and per-shift closings',
+    items: [
+      'You cannot demote or delete the last Master-role user, or delete the only full-access role, so admin/settings cannot be locked out.',
+      'Cash closings are saved per shift for the same business day, so a second shift no longer overwrites the first.',
+      'Cash Closing report lists every closing for the day with a shift selector and itemized paid transactions (filtered by shift when set).',
+      'Completing any closing still ends order-taking for the whole day — use Save draft for mid-day shift handoffs.',
+    ],
+  },
+  {
     date: '2026-09-21',
     title: 'Print logo size and header wrap',
     items: [
