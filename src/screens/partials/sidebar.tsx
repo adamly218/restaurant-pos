@@ -39,6 +39,7 @@ import {
   SUMMARY,
   TIP_DISTRIBUTION, ACCOUNTS
 } from "@/routes/posr.ts";
+import { getAccessRuleChildLabel } from "@/lib/access.rules.i18n.ts";
 import { getUserModules } from "@/lib/access.rules.ts";
 import { useSecurity } from "@/hooks/useSecurity.ts";
 import ScrollContainer from "react-indiana-drag-scroll";
@@ -84,7 +85,10 @@ export const Sidebar = () => {
   }
 
   const lock = () => {
-    lockSession(setPage, navigation);
+    void protectAction(() => lockSession(setPage, navigation), {
+      description: getAccessRuleChildLabel('settings.access_control'),
+      module: 'settings.access_control',
+    });
   }
 
   const allSidebarItems = useMemo(() => [
