@@ -111,7 +111,7 @@ export const getCashClosing = async (db: DbClient, options: {date?: string}) => 
     `;
 
   const rows = unwrapQueryResult<{
-    opening_balance?: number;
+    previous_day_balance?: number;
     closing_balance?: number;
     expenses?: number;
     terminal_cash?: Array<{cash_amount?: number}>;
@@ -135,12 +135,12 @@ export const getCashClosing = async (db: DbClient, options: {date?: string}) => 
 
   return {
     found: true,
-    openingBalance: safeNumber(closing.opening_balance),
+    openingBalance: safeNumber(closing.previous_day_balance),
     closingBalance: safeNumber(closing.closing_balance),
     totalCash,
     totalOtherPayments,
     totalExpenses: safeNumber(closing.expenses),
-    variance: safeNumber(closing.closing_balance) - safeNumber(closing.opening_balance) - totalCash + safeNumber(closing.expenses),
+    variance: safeNumber(closing.closing_balance) - safeNumber(closing.previous_day_balance) - totalCash + safeNumber(closing.expenses),
     dateFrom: closing.date_from,
     dateTo: closing.date_to,
   };

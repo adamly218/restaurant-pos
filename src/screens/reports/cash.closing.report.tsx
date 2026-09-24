@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {ReportsLayout} from "@/screens/partials/reports.layout.tsx";
 import {useDB} from "@/api/db/db.ts";
 import {Tables} from "@/api/db/tables.ts";
-import {DayClosing} from "@/api/model/day_closing.ts";
+import {Closing} from "@/api/model/closing.ts";
 import {OrderStatus} from "@/api/model/order.ts";
 import {Button} from "@/components/common/input/button.tsx";
 import {cn, toRecordId, withCurrency} from "@/lib/utils.ts";
@@ -40,7 +40,7 @@ type TransactionRow = {
   status: string;
 };
 
-const closingTabLabel = (closing: DayClosing, t: (key: string) => string) => {
+const closingTabLabel = (closing: Closing, t: (key: string) => string) => {
   const shiftName = closing.shift?.name || t('labels.noShift');
   const time = closing.date_from ? toLuxonDateTime(closing.date_from).toFormat("HH:mm") : "";
   return `${shiftName}${time ? ` (${time})` : ""}`;
@@ -50,7 +50,7 @@ export const CashClosingReport = () => {
   const { t } = useTranslation('reports');
   const db = useDB();
   const queryRef = useRef(db.query);
-  const [closings, setClosings] = useState<DayClosing[]>([]);
+  const [closings, setClosings] = useState<Closing[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,7 +92,7 @@ export const CashClosingReport = () => {
           {rangeStart, rangeEnd}
         );
 
-        const list = (Array.isArray(rows) ? rows : []) as DayClosing[];
+        const list = (Array.isArray(rows) ? rows : []) as Closing[];
         setClosings(list);
         setSelectedId(list.length > 0 ? toRecordString(list[0].id) : null);
       } catch (err) {
@@ -187,7 +187,7 @@ export const CashClosingReport = () => {
   }, [closing?.id, closing?.date_from, closing?.date_to, closing?.shift?.id]);
 
   const subtitle = selectedDate || "Selected day";
-  const openingBalance = Number(closing?.opening_balance || 0);
+  const openingBalance = Number(closing?.previous_day_balance || 0);
   const totalCash = Number((closing?.terminal_cash || []).reduce((sum, item: any) => sum + Number(item?.cash_amount || 0), 0));
   const totalOtherPayments = Number((closing?.payments_data || [])
     .filter((item: any) => String(item?.payment_type?.type || "").toLowerCase() !== "cash")
