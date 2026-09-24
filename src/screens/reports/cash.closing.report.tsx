@@ -4,9 +4,18 @@ import {ReportsLayout} from "@/screens/partials/reports.layout.tsx";
 import {useDB} from "@/api/db/db.ts";
 import {Tables} from "@/api/db/tables.ts";
 import {DayClosing} from "@/api/model/day_closing.ts";
+import {OrderStatus} from "@/api/model/order.ts";
 import {Button} from "@/components/common/input/button.tsx";
 import {cn, toRecordId, withCurrency} from "@/lib/utils.ts";
 import {toLuxonDateTime, toSurrealDateTime} from "@/lib/datetime.ts";
+
+const TRANSACTION_STATUSES = [OrderStatus.Paid, OrderStatus.Refunded, OrderStatus.Cancelled];
+
+const ORDER_STATUS_BADGE_CLASS: Partial<Record<OrderStatus, string>> = {
+  [OrderStatus.Paid]: 'bg-success-100 text-success-800',
+  [OrderStatus.Refunded]: 'bg-warning-100 text-warning-800',
+  [OrderStatus.Cancelled]: 'bg-danger-100 text-danger-800',
+};
 
 const parseFilters = () => {
   const params = new URLSearchParams(window.location.search);
@@ -28,6 +37,7 @@ type TransactionRow = {
   createdAt: unknown;
   paymentTypeName: string;
   amount: number;
+  status: string;
 };
 
 const closingTabLabel = (closing: DayClosing, t: (key: string) => string) => {
@@ -99,11 +109,11 @@ export const CashClosingReport = () => {
         const shiftId = closing.shift?.id ? toRecordString(closing.shift.id) : null;
         const [rows] = await queryRef.current(
           `
-            SELECT id, invoice_number, created_at, payments
+            SELECT id, invoice_number, created_at, status, payments
             FROM ${Tables.orders}
             WHERE created_at >= $start
               AND created_at <= $end
-              AND status = 'Paid'
+              AND status IN $statuses
               ${shiftId ? `AND (cashier.user_shift = $shiftId OR user.user_shift = $shiftId)` : ""}
             ORDER BY created_at ASC
             FETCH payments, payments.payment_type
@@ -111,6 +121,7 @@ export const CashClosingReport = () => {
           {
             start: toSurrealDateTime(closing.date_from),
             end: toSurrealDateTime(closing.date_to),
+            statuses: TRANSACTION_STATUSES,
             ...(shiftId ? {shiftId: toRecordId(shiftId)} : {}),
           },
         );
@@ -119,13 +130,24 @@ export const CashClosingReport = () => {
           id: unknown;
           invoice_number: number;
           created_at: unknown;
+          status: string;
           payments?: Array<{ amount?: number; payment_type?: { name?: string } }>;
         }>;
 
         const flattened: TransactionRow[] = [];
         for (const order of orders) {
           const payments = Array.isArray(order.payments) ? order.payments : [];
-          if (payments.length === 0) continue;
+          if (payments.length === 0) {
+            flattened.push({
+              orderId: toRecordString(order.id),
+              invoiceNumber: order.invoice_number,
+              createdAt: order.created_at,
+              paymentTypeName: "-",
+              amount: 0,
+              status: order.status,
+            });
+            continue;
+          }
           for (const payment of payments) {
             flattened.push({
               orderId: toRecordString(order.id),
@@ -133,6 +155,7 @@ export const CashClosingReport = () => {
               createdAt: order.created_at,
               paymentTypeName: payment.payment_type?.name || "-",
               amount: Number(payment.amount || 0),
+              status: order.status,
             });
           }
         }
@@ -157,7 +180,9 @@ export const CashClosingReport = () => {
     .reduce((sum, item: any) => sum + Number(item?.amount || 0), 0));
   const totalExpenses = Number(closing?.expenses || 0);
   const closingBalance = Number(closing?.closing_balance || 0);
-  const transactionsTotal = transactions.reduce((sum, row) => sum + row.amount, 0);
+  const transactionsTotal = transactions
+    .filter((row) => row.status === OrderStatus.Paid)
+    .reduce((sum, row) => sum + row.amount, 0);
 
   if (loading) {
     return (
@@ -342,6 +367,7 @@ export const CashClosingReport = () => {
                   <tr>
                     <th className="py-3 pl-6 pr-3 text-left text-xs font-semibold text-foreground">{t('columns.invoice')}</th>
                     <th className="py-3 px-3 text-left text-xs font-semibold text-foreground">{t('columns.time')}</th>
+                    <th className="py-3 px-3 text-left text-xs font-semibold text-foreground">{t('columns.status')}</th>
                     <th className="py-3 px-3 text-left text-xs font-semibold text-foreground">{t('columns.paymentMethod')}</th>
                     <th className="py-3 px-3 text-right text-xs font-semibold text-foreground">{t('columns.amount')}</th>
                   </tr>
@@ -349,11 +375,11 @@ export const CashClosingReport = () => {
                 <tbody className="divide-y divide-neutral-100 bg-surface-elevated">
                   {transactionsLoading ? (
                     <tr>
-                      <td colSpan={4} className="py-6 text-center text-sm text-muted">{t('loading.cashClosing')}</td>
+                      <td colSpan={5} className="py-6 text-center text-sm text-muted">{t('loading.cashClosing')}</td>
                     </tr>
                   ) : transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-6 text-center text-sm text-muted">No transactions in this closing</td>
+                      <td colSpan={5} className="py-6 text-center text-sm text-muted">No transactions in this closing</td>
                     </tr>
                   ) : (
                     transactions.map((row, index) => (
@@ -361,6 +387,14 @@ export const CashClosingReport = () => {
                         <td className="py-3 pl-6 pr-3 text-sm text-foreground">#{row.invoiceNumber}</td>
                         <td className="py-3 px-3 text-sm text-foreground">
                           {toLuxonDateTime(row.createdAt as any).toFormat("HH:mm")}
+                        </td>
+                        <td className="py-3 px-3 text-sm text-foreground">
+                          <span className={cn(
+                            "px-2 py-1 rounded text-xs whitespace-nowrap",
+                            ORDER_STATUS_BADGE_CLASS[row.status as OrderStatus] || "bg-surface text-foreground"
+                          )}>
+                            {row.status}
+                          </span>
                         </td>
                         <td className="py-3 px-3 text-sm text-foreground">{row.paymentTypeName}</td>
                         <td className="py-3 px-3 text-right text-sm text-foreground">{withCurrency(row.amount)}</td>
@@ -371,7 +405,7 @@ export const CashClosingReport = () => {
                 {transactions.length > 0 && (
                   <tfoot className="bg-surface">
                     <tr>
-                      <td colSpan={3} className="py-3 pl-6 pr-3 text-sm font-semibold text-foreground">Total</td>
+                      <td colSpan={4} className="py-3 pl-6 pr-3 text-sm font-semibold text-foreground">Total (paid)</td>
                       <td className="py-3 px-3 text-right text-sm font-bold text-foreground">{withCurrency(transactionsTotal)}</td>
                     </tr>
                   </tfoot>
