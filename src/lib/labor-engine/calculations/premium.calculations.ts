@@ -13,6 +13,7 @@ import type {
 } from '@/lib/labor-engine/types.ts'
 import { toLuxonDateTime } from '@/lib/datetime.ts'
 import { safeNumber } from '@/lib/utils.ts'
+import { entryWorkedHours, unpaidBreakIntervals } from '@/lib/labor-engine/calculations/hours.calculations.ts'
 
 const roundHours = (hours: number): number => Math.round(hours * 100) / 100
 
@@ -73,6 +74,7 @@ export const computeNightPremiumHours = (
     if (!entry.clock_out) continue
     const start = toLuxonDateTime(entry.clock_in)
     const end = toLuxonDateTime(entry.clock_out)
+    const breaks = unpaidBreakIntervals(entry)
     let cursor = start
     let nightHours = 0
 
@@ -80,7 +82,8 @@ export const computeNightPremiumHours = (
       const next = cursor.plus({ minutes: 15 })
       const sliceEnd = next > end ? end : next
       const midMinute = cursor.hour * 60 + cursor.minute + 7.5
-      if (isNightMinute(midMinute, startMin, endMin)) {
+      const onUnpaidBreak = breaks.some(br => cursor < br.end && sliceEnd > br.start)
+      if (!onUnpaidBreak && isNightMinute(midMinute, startMin, endMin)) {
         nightHours += sliceEnd.diff(cursor, 'hours').hours
       }
       cursor = sliceEnd
@@ -110,8 +113,7 @@ export const computeWeekendPremiumHours = (
   for (const entry of entries) {
     if (!entry.clock_out) continue
     const start = toLuxonDateTime(entry.clock_in)
-    const end = toLuxonDateTime(entry.clock_out)
-    const hours = roundHours(end.diff(start, 'hours').hours)
+    const hours = roundHours(entryWorkedHours(entry))
 
     if (weekendDays.includes(start.weekday % 7)) {
       buckets.push({
@@ -140,8 +142,7 @@ export const computeHolidayPremiumHours = (
     const holiday = holidayMap.get(dateKey)
     if (!holiday) continue
 
-    const end = toLuxonDateTime(entry.clock_out)
-    const hours = roundHours(end.diff(start, 'hours').hours)
+    const hours = roundHours(entryWorkedHours(entry))
     buckets.push({
       type: 'holiday',
       hours,

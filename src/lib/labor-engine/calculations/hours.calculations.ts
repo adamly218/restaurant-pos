@@ -23,7 +23,21 @@ const roundHours = (hours: number): number => {
   return Math.round(hours * 100) / 100
 }
 
-const entryWorkedHours = (entry: TimeEntryWithBreaks): number => {
+/** Unpaid break windows for an entry, as Luxon instants — used by premium
+ *  (night/weekend/holiday) calculations to exclude break time the same way
+ *  the regular/overtime bucketing already does. */
+export const unpaidBreakIntervals = (
+  entry: TimeEntryWithBreaks
+): Array<{ start: ReturnType<typeof toLuxonDateTime>; end: ReturnType<typeof toLuxonDateTime> }> => {
+  const intervals: Array<{ start: ReturnType<typeof toLuxonDateTime>; end: ReturnType<typeof toLuxonDateTime> }> = []
+  for (const br of entry.breaks ?? []) {
+    if (!br.end_at || br.break_type !== 'unpaid') continue
+    intervals.push({ start: toLuxonDateTime(br.start_at), end: toLuxonDateTime(br.end_at) })
+  }
+  return intervals
+}
+
+export const entryWorkedHours = (entry: TimeEntryWithBreaks): number => {
   if (entry.duration_seconds !== undefined && entry.duration_seconds !== null) {
     return roundHours(safeNumber(entry.duration_seconds) / 3600)
   }
@@ -89,6 +103,12 @@ export const computeHoursFromEntries = (
   return { totalHours, daily, paidBreakHours, unpaidBreakHours }
 }
 
+/** ISO calendar week (Mon-Sun) key — the weekly OT threshold resets here. */
+const weekKeyForDate = (date: string): string => {
+  const dt = toLuxonDateTime(date)
+  return `${dt.weekYear}-${dt.weekNumber}`
+}
+
 export const bucketHours = (
   daily: DailyHours[],
   thresholds: HoursPolicyThresholds = {},
@@ -105,38 +125,36 @@ export const bucketHours = (
   let regularHours = 0
   let overtimeHours = 0
   let doubleTimeHours = 0
-  let runningWeekHours = priorWeekHours
+
+  // Hours already worked earlier in the SAME calendar week as the first day
+  // in `daily` (e.g. a pay period that starts mid-week). Only the caller's
+  // priorWeekHours seeds this; it is not carried over to later weeks.
+  let currentWeekKey: string | null = null
+  let weekHoursBeforeToday = 0
 
   for (const day of daily) {
-    let remaining = day.hours
-    let dayRegular = 0
-    let dayOt = 0
-    let dayDouble = 0
-
-    const dailyRegularCap = dailyOt
-    const toRegular = Math.min(remaining, Math.max(0, dailyRegularCap))
-    dayRegular = toRegular
-    remaining = roundHours(remaining - toRegular)
-
-    if (remaining > 0) {
-      const otCap = Math.max(0, doubleTimeThreshold - dailyRegularCap)
-      const toOt = Math.min(remaining, otCap)
-      dayOt = toOt
-      remaining = roundHours(remaining - toOt)
+    const weekKey = weekKeyForDate(day.date)
+    if (weekKey !== currentWeekKey) {
+      weekHoursBeforeToday = currentWeekKey === null ? priorWeekHours : 0
+      currentWeekKey = weekKey
     }
 
-    if (remaining > 0) {
-      dayDouble = remaining
-      remaining = 0
-    }
+    // Daily rule: hours beyond the double-time threshold are double-time
+    // regardless of the week — this is purely "too many hours in one day".
+    const dayDouble = Math.max(0, roundHours(day.hours - doubleTimeThreshold))
+    const nonDoubleHours = roundHours(day.hours - dayDouble)
 
-    runningWeekHours = roundHours(runningWeekHours + day.hours)
-    if (runningWeekHours > weeklyOt) {
-      const weeklyExcess = roundHours(runningWeekHours - weeklyOt)
-      const shiftFromRegular = Math.min(dayRegular, weeklyExcess)
-      dayRegular = roundHours(dayRegular - shiftFromRegular)
-      dayOt = roundHours(dayOt + shiftFromRegular)
-    }
+    // An hour only counts as "regular" if it clears BOTH the daily cap AND
+    // the remaining weekly budget — whichever threshold is hit first wins.
+    // This replaces the old approach of computing daily buckets first and
+    // then retroactively "shifting" a flat weekly-excess amount out of
+    // regular, which double-counted hours that were already daily-overtime.
+    const dailyRegularEligible = Math.min(nonDoubleHours, Math.max(0, dailyOt))
+    const weekBudgetRemaining = Math.max(0, roundHours(weeklyOt - weekHoursBeforeToday))
+    const dayRegular = Math.min(dailyRegularEligible, weekBudgetRemaining)
+    const dayOt = roundHours(nonDoubleHours - dayRegular)
+
+    weekHoursBeforeToday = roundHours(weekHoursBeforeToday + day.hours)
 
     regularHours = roundHours(regularHours + dayRegular)
     overtimeHours = roundHours(overtimeHours + dayOt)

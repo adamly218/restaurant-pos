@@ -56,7 +56,10 @@ export const resolveRuleStacking = (
 
   const byGroup = new Map<string, LaborRuleCandidate[]>()
   for (const c of candidates) {
-    if (c.totalAmount <= 0) {
+    // Deductions carry a negative totalAmount by design — only a true
+    // no-op (exactly 0) has nothing to apply. `<= 0` here silently
+    // rejected every pure-deduction rule regardless of eligibility.
+    if (c.totalAmount === 0) {
       rejected.push(c)
       continue
     }
