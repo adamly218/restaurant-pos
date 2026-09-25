@@ -84,6 +84,11 @@ export interface ExportRunParams {
   exportedBy?: User
 }
 
+export interface DeleteRunParams {
+  runId: string
+  deletedBy?: User
+}
+
 const loadPeriod = async (db: DbClient, periodId: string): Promise<PayrollPeriod> => {
   const [rows] = await db.query<[PayrollPeriod[]]>(
     `SELECT * FROM ${Tables.payroll_periods} WHERE id = $id LIMIT 1`,
@@ -580,4 +585,42 @@ export const exportRun = async (
   })
 
   return { run, rows }
+}
+
+/**
+ * Draft runs only — once a run is locked/approved/exported it's a payroll
+ * record tied to real pay decisions, so it stays as history instead of
+ * being deletable. Void/reverse it through a new run if it was wrong.
+ */
+export const deleteRun = async (
+  db: DbClient,
+  params: DeleteRunParams
+): Promise<void> => {
+  const existing = await db.query<[PayrollRun[]]>(
+    `SELECT * FROM ${Tables.payroll_runs} WHERE id = $id LIMIT 1`,
+    { id: toRecordId(params.runId) }
+  )
+  const before = existing?.[0]?.[0]
+  if (!before) throw new Error('Payroll run not found')
+  if ((before.status ?? 'draft') !== 'draft') {
+    throw new Error('Only draft runs can be deleted')
+  }
+
+  await db.query(
+    `DELETE ${Tables.payroll_snapshots} WHERE payroll_run = $runId`,
+    { runId: toRecordId(params.runId) }
+  )
+  await db.query(
+    `DELETE ${Tables.payroll_runs} WHERE id = $id`,
+    { id: toRecordId(params.runId) }
+  )
+
+  await logLaborChange(db, {
+    entityType: 'payroll_run',
+    entityId: params.runId,
+    action: 'delete_run',
+    before,
+    after: null,
+    changedBy: params.deletedBy,
+  })
 }

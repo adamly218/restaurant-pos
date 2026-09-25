@@ -557,7 +557,9 @@
     "saveOverride": "Save override",
     "resetOverrides": "Reset overrides",
     "confirmResetOverrides": "Recalculate all lines and discard manager overrides?",
-    "overrideHelp": "Edit amounts on a preview run. Recalculate keeps overridden lines unless you reset them."
+    "overrideHelp": "Edit amounts on a preview run. Recalculate keeps overridden lines unless you reset them.",
+    "deleted": "Payroll run deleted",
+    "deleteConfirm": "Delete this draft payroll run? This cannot be undone."
   },
   "dashboard": {
     "title": "Labor dashboard",
