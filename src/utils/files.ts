@@ -63,6 +63,24 @@ export const downloadArrayBuffer = (
 };
 
 /**
+ * Opens an ArrayBuffer in a new browser tab (PDFs/images render inline via
+ * the browser's own viewer, which has its own download/print controls)
+ * instead of forcing an immediate download. Call must happen synchronously
+ * inside the click handler or popup blockers will block the new tab; the
+ * object URL is revoked after a delay so the new tab has time to load it.
+ */
+export const viewArrayBufferInNewTab = (
+  arrayBuffer: ArrayBuffer | string,
+  mimeType: string = 'application/octet-stream'
+) => {
+  const buffer = toArrayBuffer(arrayBuffer);
+  const blob = new Blob([buffer], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  window.open(url, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+};
+
+/**
  * Converts binary data from SurrealDB (Uint8Array, ArrayBuffer, base64 string) to Uint8Array
  */
 export const toUint8Array = (value: unknown): Uint8Array => {
