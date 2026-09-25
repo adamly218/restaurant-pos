@@ -80,6 +80,29 @@ export const Login = () => {
     }
   }
 
+  // The PIN pad only ever had onClick handlers on its visible buttons — a
+  // physical keyboard's digit keys did nothing. Mirror the same digits,
+  // Backspace, and Escape/Delete (clear) while the PIN method is active.
+  useEffect(() => {
+    if (loginMethod !== 'pin') return;
+
+    const onPhysicalKeyDown = (event: KeyboardEvent) => {
+      if (event.key >= '0' && event.key <= '9') {
+        event.preventDefault();
+        onKey(event.key);
+      } else if (event.key === 'Backspace') {
+        event.preventDefault();
+        onBack();
+      } else if (event.key === 'Escape' || event.key === 'Delete') {
+        event.preventDefault();
+        onClear();
+      }
+    };
+
+    window.addEventListener('keydown', onPhysicalKeyDown);
+    return () => window.removeEventListener('keydown', onPhysicalKeyDown);
+  }, [loginMethod, code]);
+
   const failConnection = () => {
     clearSessionTokens();
     toast.error(i18n.t('auth:login.connectionFailed', { defaultValue: 'Database connection failed after login' }));
