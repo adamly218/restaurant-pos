@@ -232,7 +232,7 @@ h1, h2, h3, h4, h5, h6, .title, .card-title, th{
   --border: rgb(var(--surface-elevated));
   --radius: theme('borderRadius.lg');
   --scale: 0.9;
-  --font-size: 16px; /* was 14px, below Apple HIG's 17pt default for iOS/iPadOS body/control text */
+  --font-size: 14px;
   --padding: 0.5rem 0.75rem;
   --height: 40px;
 
@@ -480,21 +480,6 @@ select.input{
     --ant-select-border-color: theme('colors.neutral.900');
   }
 }*/
-
-/* Ant's Calendar shrinks the month/year title to its "small" Select size
- * whenever fullscreen={false} (our mini calendar on /summary) — restore it
- * to a normal, legible size instead of Ant's default small-select text. */
-.app-ant-picker .ant-picker-calendar-header {
-  .ant-select-selector {
-    height: 36px !important;
-  }
-
-  .ant-select-selection-item {
-    font-size: 18px !important;
-    font-weight: 600;
-    line-height: 34px !important;
-  }
-}
 
 textarea.form-control,
 textarea.input {
