@@ -7,6 +7,14 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-24',
+    title: 'Durable local-to-cloud sync',
+    items: [
+      'Branch sales data (including fiscal submission rows) uploads to the cloud master via SurrealDB changefeeds with a first-run backfill, so failed or offline uploads retry instead of being dropped.',
+      'Each uploaded row is stamped with the branch id so multiple stores can share one reporting database.',
+    ],
+  },
+  {
     date: '2026-09-23',
     title: 'AI Assistant user guides',
     items: [
