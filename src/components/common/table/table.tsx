@@ -192,13 +192,31 @@ export const TableComponent: FC<TableComponentProps> = ({
 
   const handleColumnFilter = (values: any) => {
     if( values.value && values.value.trim() !== '' ) {
-      handleFilterChange([
-        `string::similarity::fuzzy(string::lowercase($this[$column] ?? ''), string::lowercase($value ?? '')) > 0`
-      ]);
-      handleParameterChange({
-        column: values.column.value,
-        value: values.value.toString().toLowerCase()
-      });
+      // Columns whose id is a record-link field (e.g. "employee", "department")
+      // hold a record reference, not a string — $this[$column] on those throws
+      // a SurrealDB type error. Such columns can set meta.filterField to a
+      // literal SurrealQL expression (e.g. "employee.first_name") to search
+      // instead; it's embedded directly since it comes from our own column
+      // definitions, never from user input.
+      const column = table.getColumn(values.column.value);
+      const filterField = column?.columnDef.meta?.filterField;
+
+      if (filterField) {
+        handleFilterChange([
+          `string::similarity::fuzzy(string::lowercase(${filterField} ?? ''), string::lowercase($value ?? '')) > 0`
+        ]);
+        handleParameterChange({
+          value: values.value.toString().toLowerCase()
+        });
+      } else {
+        handleFilterChange([
+          `string::similarity::fuzzy(string::lowercase($this[$column] ?? ''), string::lowercase($value ?? '')) > 0`
+        ]);
+        handleParameterChange({
+          column: values.column.value,
+          value: values.value.toString().toLowerCase()
+        });
+      }
     }
 
     if(Object.values(values).length > 0) {

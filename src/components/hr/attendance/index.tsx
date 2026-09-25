@@ -61,7 +61,11 @@ export const HrAttendance = () => {
   };
 
   const columns: any = [
-    columnHelper.accessor((row) => entityLabel(row.employee), {id: "employee", header: t("columns.employee")}),
+    columnHelper.accessor((row) => entityLabel(row.employee), {
+      id: "employee",
+      header: t("columns.employee"),
+      meta: {filterField: "string::concat(employee.first_name, ' ', employee.last_name ?? '')"},
+    }),
     columnHelper.accessor("clock_in", {
       header: t("columns.clockIn"),
       cell: (info) => formatDisplayDate(info.getValue()),

@@ -29,7 +29,11 @@ export const HrPayProfiles = () => {
   const columnHelper = createColumnHelper<EmployeePayProfile>();
 
   const columns: any = [
-    columnHelper.accessor((row) => entityLabel(row.employee), {id: "employee", header: t("columns.employee")}),
+    columnHelper.accessor((row) => entityLabel(row.employee), {
+      id: "employee",
+      header: t("columns.employee"),
+      meta: {filterField: "string::concat(employee.first_name, ' ', employee.last_name ?? '')"},
+    }),
     columnHelper.accessor("pay_type", {header: t("columns.payType")}),
     columnHelper.accessor("base_rate", {
       header: t("columns.baseRate"),
