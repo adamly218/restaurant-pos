@@ -10,7 +10,10 @@ import {toLuxonDateTime, toSurrealDateTime} from "@/lib/datetime.ts";
 
 const parseFilters = () => {
   const params = new URLSearchParams(window.location.search);
-  return params.get("date") || params.get("start") || params.get("start") || "";
+  return {
+    selectedDate: params.get("date") || params.get("start") || "",
+    shiftId: params.get("shift") || "",
+  };
 };
 
 const toRecordString = (value: unknown): string => {
@@ -46,7 +49,7 @@ export const CashClosingReport = () => {
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const selectedDate = useMemo(parseFilters, []);
+  const {selectedDate, shiftId: filterShiftId} = useMemo(parseFilters, []);
 
   useEffect(() => {
     queryRef.current = db.query;
@@ -58,14 +61,23 @@ export const CashClosingReport = () => {
         setLoading(true);
         setError(null);
 
+        const conditions = [
+          `time::format(date_from, "${import.meta.env.VITE_DB_DATABASE_DATE_FORMAT}") = $selectedDate`,
+        ];
+        const params: Record<string, unknown> = {selectedDate};
+        if (filterShiftId) {
+          conditions.push(`shift = $shiftId`);
+          params.shiftId = toRecordId(filterShiftId);
+        }
+
         const [rows] = await queryRef.current(
           `
             SELECT * FROM ${Tables.closings}
-            WHERE time::format(date_from, "${import.meta.env.VITE_DB_DATABASE_DATE_FORMAT}") = $selectedDate
+            WHERE ${conditions.join(" AND ")}
             ORDER BY date_from ASC, created_at ASC
             FETCH closed_by, opened_by, shift
           `,
-          {selectedDate}
+          params
         );
 
         const list = (Array.isArray(rows) ? rows : []) as DayClosing[];
@@ -80,7 +92,7 @@ export const CashClosingReport = () => {
     };
 
     void fetchData();
-  }, [selectedDate]);
+  }, [selectedDate, filterShiftId]);
 
   const closing = useMemo(
     () => closings.find((item) => toRecordString(item.id) === selectedId) || null,
@@ -149,14 +161,29 @@ export const CashClosingReport = () => {
     void fetchTransactions();
   }, [closing?.id, closing?.date_from, closing?.date_to, closing?.shift?.id]);
 
-  const subtitle = selectedDate || "Selected day";
-  const openingBalance = Number(closing?.opening_balance || 0);
+  const subtitle = [
+    selectedDate || "Selected day",
+    filterShiftId && closings[0]?.shift?.name ? closings[0].shift.name : null,
+    !filterShiftId && closings.length > 1
+      ? t('labels.closingsCount', { count: closings.length, defaultValue: `${closings.length} closings` })
+      : null,
+  ].filter(Boolean).join(" · ");
+  const openingBalance = Number((closing as any)?.previous_day_balance ?? closing?.opening_balance ?? 0);
   const totalCash = Number((closing?.terminal_cash || []).reduce((sum, item: any) => sum + Number(item?.cash_amount || 0), 0));
   const totalOtherPayments = Number((closing?.payments_data || [])
     .filter((item: any) => String(item?.payment_type?.type || "").toLowerCase() !== "cash")
     .reduce((sum, item: any) => sum + Number(item?.amount || 0), 0));
   const totalExpenses = Number(closing?.expenses || 0);
   const closingBalance = Number(closing?.closing_balance || 0);
+  const drawerFloat = Number((closing as any)?.drawer_float ?? closingBalance);
+  const cashDrop = Number((closing as any)?.cash_withdrawn ?? (closing as any)?.cash_withdraw ?? 0);
+  const varianceReason = String((closing as any)?.variance_reason || "");
+  const batchTotals = Array.isArray((closing as any)?.batch_totals) ? (closing as any).batch_totals : [];
+  const shiftRecap = (closing as any)?.shift_recap as Record<string, number> | undefined;
+  const closedBy = closing?.closed_by as { first_name?: string; last_name?: string; login?: string } | undefined;
+  const closedByName = closedBy
+    ? ([closedBy.first_name, closedBy.last_name].filter(Boolean).join(" ").trim() || closedBy.login || "")
+    : "";
   const transactionsTotal = transactions.reduce((sum, row) => sum + row.amount, 0);
 
   if (loading) {
@@ -178,7 +205,15 @@ export const CashClosingReport = () => {
   if (closings.length === 0) {
     return (
       <ReportsLayout title={t('titles.cashClosing')} subtitle={subtitle}>
-        <div className="py-12 text-center text-muted">No cash closing found for selected date.</div>
+        <div className="py-12 text-center text-muted">
+          {filterShiftId
+            ? t('errors.noCashClosingForShift', {
+                defaultValue: 'No cash closing found for the selected date and shift.',
+              })
+            : t('errors.noCashClosing', {
+                defaultValue: 'No cash closing found for selected date.',
+              })}
+        </div>
       </ReportsLayout>
     );
   }
@@ -186,28 +221,33 @@ export const CashClosingReport = () => {
   return (
     <ReportsLayout title={t('titles.cashClosing')} subtitle={subtitle}>
       <div className="space-y-6">
-        {closings.length > 1 && (
-          <div className="flex flex-wrap gap-2" data-testid="cash-closing-selector">
-            {closings.map((item) => {
-              const id = toRecordString(item.id);
-              const isSelected = id === selectedId;
-              return (
-                <Button
-                  key={id}
-                  type="button"
-                  flat
-                  variant={isSelected ? "primary" : "secondary"}
-                  onClick={() => setSelectedId(id)}
-                  className={cn(
-                    "px-4 py-2 rounded-lg border text-sm font-medium",
-                    !isSelected && "bg-surface-elevated border-border text-foreground"
-                  )}
-                >
-                  {closingTabLabel(item, t)}
-                  <span className="ml-2 text-xs opacity-75 capitalize">({item.status || "-"})</span>
-                </Button>
-              );
-            })}
+        {closings.length > 0 && (
+          <div className="space-y-2" data-testid="cash-closing-selector">
+            <div className="text-sm font-semibold text-foreground">
+              {t('labels.closingsForDay', { defaultValue: 'Closings for this day' })}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {closings.map((item) => {
+                const id = toRecordString(item.id);
+                const isSelected = id === selectedId;
+                return (
+                  <Button
+                    key={id}
+                    type="button"
+                    flat
+                    variant={isSelected ? "primary" : "secondary"}
+                    onClick={() => setSelectedId(id)}
+                    className={cn(
+                      "px-4 py-2 rounded-lg border text-sm font-medium",
+                      !isSelected && "bg-surface-elevated border-border text-foreground"
+                    )}
+                  >
+                    {closingTabLabel(item, t)}
+                    <span className="ml-2 text-xs opacity-75 capitalize">({item.status || "-"})</span>
+                  </Button>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -219,16 +259,16 @@ export const CashClosingReport = () => {
                 <div className="text-xl font-semibold">{closing.shift?.name || t('labels.noShift')}</div>
               </div>
               <div className="border rounded-lg p-4 bg-surface">
-                <div className="text-sm text-muted">Opening balance</div>
+                <div className="text-sm text-muted">{t('labels.previousFloat')}</div>
                 <div className="text-xl font-semibold">{withCurrency(openingBalance)}</div>
               </div>
               <div className="border rounded-lg p-4 bg-surface">
-                <div className="text-sm text-muted">Total cash</div>
+                <div className="text-sm text-muted">{t('labels.countedCash')}</div>
                 <div className="text-xl font-semibold">{withCurrency(totalCash)}</div>
               </div>
               <div className="border rounded-lg p-4 bg-surface">
-                <div className="text-sm text-muted">Other payments</div>
-                <div className="text-xl font-semibold">{withCurrency(totalOtherPayments)}</div>
+                <div className="text-sm text-muted">{t('labels.cashDrop')}</div>
+                <div className="text-xl font-semibold">{withCurrency(cashDrop)}</div>
               </div>
               <div className="border rounded-lg p-4 bg-surface">
                 <div className="text-sm text-muted">{t('labels.cashAdded')}</div>
@@ -239,9 +279,19 @@ export const CashClosingReport = () => {
                 <div className="text-xl font-semibold">{withCurrency(totalExpenses)}</div>
               </div>
               <div className="border rounded-lg p-4 bg-surface">
-                <div className="text-sm text-muted">{t('labels.closingBalance')}</div>
-                <div className="text-xl font-semibold">{withCurrency(closingBalance)}</div>
+                <div className="text-sm text-muted">{t('labels.drawerFloat')}</div>
+                <div className="text-xl font-semibold">{withCurrency(drawerFloat)}</div>
               </div>
+              <div className="border rounded-lg p-4 bg-surface">
+                <div className="text-sm text-muted">Other payments</div>
+                <div className="text-xl font-semibold">{withCurrency(totalOtherPayments)}</div>
+              </div>
+              {closedByName && (
+                <div className="border rounded-lg p-4 bg-surface">
+                  <div className="text-sm text-muted">{t('labels.closedBy')}</div>
+                  <div className="text-xl font-semibold">{closedByName}</div>
+                </div>
+              )}
             </div>
 
             <div className="overflow-hidden rounded-lg border border-border">
@@ -277,9 +327,54 @@ export const CashClosingReport = () => {
                     <td className="py-3 pl-6 pr-3 text-sm font-semibold text-foreground">Notes</td>
                     <td className="py-3 pr-6 text-sm text-foreground">{closing.notes || "-"}</td>
                   </tr>
+                  {varianceReason && (
+                    <tr>
+                      <td className="py-3 pl-6 pr-3 text-sm font-semibold text-foreground">{t('labels.varianceReason')}</td>
+                      <td className="py-3 pr-6 text-sm text-foreground">{varianceReason}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
+
+            {batchTotals.length > 0 && (
+              <div className="overflow-hidden rounded-lg border border-border">
+                <h3 className="bg-surface px-6 py-3 text-sm font-semibold text-foreground">{t('labels.batchTotals')}</h3>
+                <table className="min-w-full divide-y divide-neutral-200">
+                  <thead className="bg-surface">
+                    <tr>
+                      <th className="py-3 pl-6 pr-3 text-left text-xs font-semibold">{t('columns.paymentMethod')}</th>
+                      <th className="py-3 px-3 text-right text-xs font-semibold">{t('labels.systemAmount')}</th>
+                      <th className="py-3 px-3 text-right text-xs font-semibold">{t('labels.batchAmount')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 bg-surface-elevated">
+                    {batchTotals.map((row: any, index: number) => (
+                      <tr key={`${row.payment_type_id}_${index}`}>
+                        <td className="py-3 pl-6 pr-3 text-sm">{row.payment_type_name || "-"}</td>
+                        <td className="py-3 px-3 text-right text-sm">{withCurrency(Number(row.system_amount || 0))}</td>
+                        <td className="py-3 px-3 text-right text-sm">{withCurrency(Number(row.batch_amount || 0))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {shiftRecap && (
+              <div className="overflow-hidden rounded-lg border border-border">
+                <h3 className="bg-surface px-6 py-3 text-sm font-semibold text-foreground">{t('labels.shiftRecap')}</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4">
+                  <div><div className="text-xs text-muted">{t('labels.paidOrders')}</div><div className="font-semibold">{Number(shiftRecap.paid_orders || 0)}</div></div>
+                  <div><div className="text-xs text-muted">{t('labels.discounts')}</div><div className="font-semibold">{withCurrency(Number(shiftRecap.discounts || 0))}</div></div>
+                  <div><div className="text-xs text-muted">{t('columns.tax')}</div><div className="font-semibold">{withCurrency(Number(shiftRecap.tax || 0))}</div></div>
+                  <div><div className="text-xs text-muted">{t('labels.serviceCharge')}</div><div className="font-semibold">{withCurrency(Number(shiftRecap.service_charge || 0))}</div></div>
+                  <div><div className="text-xs text-muted">{t('labels.tips')}</div><div className="font-semibold">{withCurrency(Number(shiftRecap.tips || 0))}</div></div>
+                  <div><div className="text-xs text-muted">{t('labels.voids')}</div><div className="font-semibold">{withCurrency(Number(shiftRecap.voids || 0))}</div></div>
+                  <div><div className="text-xs text-muted">{t('labels.refunds')}</div><div className="font-semibold">{Number(shiftRecap.refunds || 0)}</div></div>
+                </div>
+              </div>
+            )}
 
             <div className="overflow-hidden rounded-lg border border-border">
               <h3 className="bg-surface px-6 py-3 text-sm font-semibold text-foreground">Terminal cash</h3>
