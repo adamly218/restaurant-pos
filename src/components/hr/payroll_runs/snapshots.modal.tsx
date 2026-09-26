@@ -222,6 +222,9 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                 <th className="px-3 py-2">{t("payroll.payType")}</th>
                 <th className="px-3 py-2 text-right">{t("payroll.paidDays")}</th>
                 <th className="px-3 py-2 text-right">{t("columns.hours")}</th>
+                <th className="px-3 py-2 text-right">{t("payroll.regularPay")}</th>
+                <th className="px-3 py-2 text-right">{t("payroll.overtimePay")}</th>
+                <th className="px-3 py-2 text-right">{t("payroll.premiumPay", {defaultValue: "Premium pay"})}</th>
                 <th className="px-3 py-2 text-right">{t("payroll.grossPay")}</th>
                 <th className="px-3 py-2 text-right">{t("payroll.netPay")}</th>
                 <th className="px-3 py-2">{t("forms.payRule.effects")}</th>
@@ -260,8 +263,11 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                       <td className="px-3 py-2 text-sm">{payTypeLabel(snapshot)}</td>
                       <td className="px-3 py-2 text-sm text-right">{safeNumber(snapshot.paid_days).toFixed(0)}</td>
                       <td className="px-3 py-2 text-sm text-right">{hours.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.gross_pay ?? 0, undefined, currency)}</td>
-                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.net_pay ?? 0, undefined, currency)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.regular_pay ?? 0, undefined, currency)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.overtime_pay ?? 0, undefined, currency)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.premium_pay ?? 0, undefined, currency)}</td>
+                      <td className="px-3 py-2 text-sm text-right font-semibold">{withCurrency(snapshot.gross_pay ?? 0, undefined, currency)}</td>
+                      <td className="px-3 py-2 text-sm text-right font-semibold">{withCurrency(snapshot.net_pay ?? 0, undefined, currency)}</td>
                       <td className="px-3 py-2 text-sm">
                         {apps.length === 0 ? (
                           "—"
@@ -278,7 +284,7 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                     </tr>
                     {expanded && (
                       <tr>
-                        <td colSpan={7} className="px-3 py-3 bg-surface">
+                        <td colSpan={10} className="px-3 py-3 bg-surface">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                             <div>
                               <Input
