@@ -17,6 +17,22 @@ export const RELEASES: ReleaseNotes[] = [
     ],
   },
   {
+    date: '2026-09-24',
+    title: 'Durable local-to-cloud sync',
+    items: [
+      'Branch sales data (including fiscal submission rows) uploads to the cloud master via SurrealDB changefeeds with a first-run backfill, so failed or offline uploads retry instead of being dropped.',
+      'Each uploaded row is stamped with the branch id so multiple stores can share one reporting database.',
+    ],
+  },
+  {
+    date: '2026-09-23',
+    title: 'AI Assistant user guides',
+    items: [
+      'The floating AI assistant can look up end-user guide chapters (how-to steps) in your language when you ask how to use a screen or feature.',
+      'Guide answers follow the documented UI steps instead of inventing menus; live sales and inventory numbers still use data tools.',
+    ],
+  },
+  {
     date: '2026-09-22',
     title: 'Last admin guard and per-shift closings',
     items: [
@@ -25,7 +41,7 @@ export const RELEASES: ReleaseNotes[] = [
       'Cash Closing report lists every closing for the day with a shift selector and itemized paid transactions (filtered by shift when set).',
       'Completing any closing still ends order-taking for the whole day — use Save draft for mid-day shift handoffs.',
       'Previous closing balance is read-only and comes from the last completed closing’s outstanding balance.',
-      'Cash Closing report filter can pick an optional shift; the report always shows every closing for the day so you can switch between shifts.',
+      'Cash Closing report filter can pick an optional shift to open only that closing, or leave empty to switch between all closings for the day.',
     ],
   },
   {
