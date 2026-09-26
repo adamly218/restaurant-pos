@@ -61,7 +61,7 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
       const [rows] = await db.query<[PayrollSnapshot[]]>(
         `SELECT * FROM ${Tables.payroll_snapshots}
          WHERE payroll_run = $runId
-         FETCH employee, overridden_by`,
+         FETCH employee, overridden_by, pay_profile_id`,
         {runId: toRecordId(run.id)},
       );
       const sorted = [...(rows ?? [])].sort((a, b) => {
@@ -94,7 +94,7 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
         const [rows] = await db.query<[PayrollSnapshot[]]>(
           `SELECT * FROM ${Tables.payroll_snapshots}
            WHERE payroll_run = $runId
-           FETCH employee, overridden_by`,
+           FETCH employee, overridden_by, pay_profile_id`,
           {runId: toRecordId(run.id)},
         );
         if (!cancelled) {
@@ -236,6 +236,10 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                 const apps = snapshot.rule_applications ?? [];
                 const expanded = expandedId === snapshot.id;
                 const draft = drafts[snapshot.id] ?? toDraft(snapshot);
+                // Snapshot amounts are computed from this employee's pay profile at
+                // calc time — that profile can be in a different currency than the
+                // store's default (VITE_CURRENCY), so format with its own currency.
+                const currency = snapshot.pay_profile_id?.currency;
                 return (
                   <Fragment key={snapshot.id}>
                     <tr>
@@ -256,8 +260,8 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                       <td className="px-3 py-2 text-sm">{payTypeLabel(snapshot)}</td>
                       <td className="px-3 py-2 text-sm text-right">{safeNumber(snapshot.paid_days).toFixed(0)}</td>
                       <td className="px-3 py-2 text-sm text-right">{hours.toFixed(2)}</td>
-                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.gross_pay ?? 0)}</td>
-                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.net_pay ?? 0)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.gross_pay ?? 0, undefined, currency)}</td>
+                      <td className="px-3 py-2 text-sm text-right">{withCurrency(snapshot.net_pay ?? 0, undefined, currency)}</td>
                       <td className="px-3 py-2 text-sm">
                         {apps.length === 0 ? (
                           "—"
@@ -332,8 +336,8 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                             <p>{t("payroll.unpaidLeaveDays")}: {safeNumber(snapshot.unpaid_leave_days).toFixed(0)}</p>
                             <p>{t("payroll.expectedWorkDays")}: {snapshot.expected_work_days ?? "—"}</p>
-                            <p>{t("payroll.bonuses")}: {withCurrency(snapshot.bonuses ?? 0)}</p>
-                            <p>{t("tabs.adjustments")}: {withCurrency(snapshot.adjustments ?? 0)}</p>
+                            <p>{t("payroll.bonuses")}: {withCurrency(snapshot.bonuses ?? 0, undefined, currency)}</p>
+                            <p>{t("tabs.adjustments")}: {withCurrency(snapshot.adjustments ?? 0, undefined, currency)}</p>
                           </div>
                           <div className="mt-3">
                             <Input
@@ -366,7 +370,7 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                                       ? ` (${t(`effectTypes.${enumLocaleKey(app.effect.type)}`, {defaultValue: app.effect.type})})`
                                       : ""}
                                   </span>
-                                  <span className="font-medium">{withCurrency(app.amount ?? 0)}</span>
+                                  <span className="font-medium">{withCurrency(app.amount ?? 0, undefined, currency)}</span>
                                 </li>
                               ))}
                             </ul>
