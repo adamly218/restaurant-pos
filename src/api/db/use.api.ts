@@ -132,9 +132,12 @@ function useApi<T>(
   const handleFilterChange = (newFilters: string[], condition = 'and'): void => {
     setFilters(newFilters);
 
-    newFilters.forEach(c => {
-      queryBuilder.setWhere(c, condition, parameters);
-    });
+    // Each entry must join the rest with a boolean operator — queryBuilder's
+    // queryString only strips the leading and/or off the first one. A per-item
+    // setWhere() loop would instead replace the wheres array on every
+    // iteration, silently dropping all but the last filter.
+    queryBuilder.setWheres(newFilters.map(c => `${condition} ${c}`));
+    queryBuilder.setParameters(parameters);
 
     setPage(0);
     queryBuilder.setOffset(0);
