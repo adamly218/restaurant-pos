@@ -401,8 +401,10 @@ DEFINE FIELD created_at ON day_closing TYPE datetime PERMISSIONS FULL;
 DEFINE FIELD date_from ON day_closing TYPE none | datetime | null PERMISSIONS FULL;
 DEFINE FIELD date_to ON day_closing TYPE none | datetime | null PERMISSIONS FULL;
 DEFINE FIELD denominations ON day_closing TYPE any PERMISSIONS FULL;
+DEFINE FIELD drawer_float ON day_closing TYPE none | float | null PERMISSIONS FULL;
 DEFINE FIELD expenses ON day_closing TYPE float PERMISSIONS FULL;
 DEFINE FIELD expenses_data ON day_closing TYPE any PERMISSIONS FULL;
+DEFINE FIELD batch_totals ON day_closing TYPE any PERMISSIONS FULL;
 DEFINE FIELD net_amount ON day_closing TYPE none | float | null PERMISSIONS FULL;
 DEFINE FIELD notes ON day_closing TYPE none | string | null PERMISSIONS FULL;
 DEFINE FIELD opened_by ON day_closing TYPE none | record<user> | null PERMISSIONS FULL;
@@ -410,10 +412,12 @@ DEFINE FIELD opening_balance ON day_closing TYPE none | float | null PERMISSIONS
 DEFINE FIELD payments_data ON day_closing TYPE any PERMISSIONS FULL;
 DEFINE FIELD previous_day_balance ON day_closing TYPE none | float | null PERMISSIONS FULL;
 DEFINE FIELD shift ON day_closing TYPE none | record<shift> | null PERMISSIONS FULL;
+DEFINE FIELD shift_recap ON day_closing TYPE any PERMISSIONS FULL;
 DEFINE FIELD status ON day_closing TYPE none | string | null PERMISSIONS FULL;
 DEFINE FIELD terminal_cash ON day_closing TYPE any PERMISSIONS FULL;
 DEFINE FIELD total_cash ON day_closing TYPE none | float | null PERMISSIONS FULL;
 DEFINE FIELD total_other_payments ON day_closing TYPE none | float | null PERMISSIONS FULL;
+DEFINE FIELD variance_reason ON day_closing TYPE none | string | null PERMISSIONS FULL;
 
 DEFINE INDEX dc_date_from ON day_closing FIELDS date_from;
 DEFINE INDEX dc_created_at ON day_closing FIELDS created_at;
@@ -1844,6 +1848,7 @@ DEFINE FIELD extras ON order TYPE none | array<record<order_extras>> | null PERM
 DEFINE FIELD floor ON order TYPE none | record<floor> | null PERMISSIONS FULL;
 DEFINE FIELD invoice_number ON order TYPE int PERMISSIONS FULL;
 DEFINE FIELD invoice_prefix ON order TYPE none | string | null PERMISSIONS FULL;
+DEFINE FIELD invoice_display ON order TYPE none | string | null PERMISSIONS FULL;
 DEFINE FIELD items ON order TYPE array<record<order_item>> PERMISSIONS FULL;
 DEFINE FIELD notes ON order TYPE none | string | null PERMISSIONS FULL;
 DEFINE FIELD order_taxes ON order TYPE none | array<record<order_tax>> | null PERMISSIONS FULL;

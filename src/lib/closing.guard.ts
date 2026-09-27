@@ -60,7 +60,7 @@ export const getClosingRecordForWindow = async (
         ${scopeToShift ? (shiftId ? "AND shift = $shiftId" : "AND shift = NONE") : ""}
       ORDER BY created_at DESC
       LIMIT 1
-      FETCH shift
+      FETCH shift, closed_by
     `,
     {
       dateFrom: toSurrealDateTime(window.date_from),
@@ -104,6 +104,39 @@ export const getCurrentCycleClosing = async (
 ): Promise<Closing | null> => {
   const {window} = await resolveClosingWindow(db, now);
   return getClosingRecordForWindow(db, window, shiftId);
+};
+
+/** Cash left in the drawer for the next shift: prefers drawer_float, falls
+ *  back to closing_balance for closings saved before that field existed. */
+export const getPreviousClosingBalance = async (
+  db: DBLike,
+  window: ClosingCycleWindow,
+  excludeId?: string | null
+): Promise<number> => {
+  const [result] = await db.query(
+    `
+      SELECT drawer_float, closing_balance, closed_at, created_at
+      FROM ${Tables.closings}
+      WHERE status = 'completed'
+        AND date_from <= $dateFrom
+        ${excludeId ? "AND id != $excludeId" : ""}
+      ORDER BY closed_at DESC, created_at DESC
+      LIMIT 1
+    `,
+    {
+      dateFrom: toSurrealDateTime(window.date_from),
+      ...(excludeId ? {excludeId: toRecordId(excludeId)} : {}),
+    }
+  );
+
+  const row = Array.isArray(result)
+    ? result[0] as { drawer_float?: number | null; closing_balance?: number } | undefined
+    : undefined;
+  if (!row) return 0;
+  if (row.drawer_float != null && !Number.isNaN(Number(row.drawer_float))) {
+    return Number(row.drawer_float);
+  }
+  return Number(row.closing_balance || 0);
 };
 
 /**
@@ -263,15 +296,32 @@ const OPEN_ORDER_STATUSES = [
 ];
 
 export const hasOpenOrdersInCurrentCycle = async (db: DBLike): Promise<boolean> => {
-  const {window} = await resolveClosingWindow(db, new Date());
+  const open = await listOpenOrdersInCurrentCycle(db);
+  return open.length > 0;
+};
+
+export type OpenOrderForClosing = {
+  id: string;
+  invoice_number?: number | string | null;
+  table_name?: string;
+  status: string;
+  total: number;
+};
+
+export const listOpenOrdersInCurrentCycle = async (
+  db: DBLike,
+  now: Date = new Date()
+): Promise<OpenOrderForClosing[]> => {
+  const {window} = await resolveClosingWindow(db, now);
   const [result] = await db.query(
     `
-      SELECT id
+      SELECT id, invoice_number, status, total, table, created_at
       FROM ${Tables.orders}
       WHERE created_at >= $start
         AND created_at <= $end
         AND status IN $statuses
-      LIMIT 1
+      ORDER BY created_at ASC
+      FETCH table
     `,
     {
       start: toSurrealDateTime(window.date_from),
@@ -280,5 +330,13 @@ export const hasOpenOrdersInCurrentCycle = async (db: DBLike): Promise<boolean> 
     }
   );
 
-  return Array.isArray(result) && result.length > 0;
+  if (!Array.isArray(result)) return [];
+
+  return result.map((row: any) => ({
+    id: String(row.id),
+    invoice_number: row.invoice_number,
+    table_name: row.table?.name || undefined,
+    status: String(row.status || ""),
+    total: Number(row.total || 0),
+  }));
 };

@@ -236,7 +236,10 @@
       "charts": "الرسوم البيانية والتنبؤ",
       "analysis": "التحليل"
     },
-    "location": "الموقع"
+    "location": "الموقع",
+    "selectDate": "اختر التاريخ",
+    "allShifts": "كل الورديات لليوم",
+    "cashClosingShiftHint": "اختر وردية لفتح إغلاقها فقط، أو اتركه فارغًا لعرض كل إغلاقات اليوم والتبديل بينها في التقرير."
   },
   "datePresets": {
     "today": "اليوم",
@@ -292,7 +295,9 @@
     "failedToLoad": "فشل تحميل التقرير: {{error}}",
     "noOrderFound": "لم يُعثر على طلب بالمعرّف المقدّم.",
     "orderIdRequired": "معرّف الطلب مطلوب.",
-    "failedToLoadDashboard": "فشل تحميل لوحة المعلومات"
+    "failedToLoadDashboard": "فشل تحميل لوحة المعلومات",
+    "noCashClosingForShift": "لا يوجد إغلاق نقدي للتاريخ والوردية المحددين.",
+    "noCashClosing": "لا يوجد إغلاق نقدي للتاريخ المحدد."
   },
   "receipt": {
     "noItems": "لا توجد أصناف في هذا الطلب."
@@ -563,7 +568,25 @@
     "saleByDayPart": "المبيعات حسب فترة اليوم",
     "saleByEmployees": "المبيعات حسب الموظفين",
     "expandAll": "توسيع الكل",
-    "collapseAll": "طي الكل"
+    "collapseAll": "طي الكل",
+    "previousFloat": "الرصيد السابق",
+    "countedCash": "النقد المعدود",
+    "cashDrop": "إسقاط النقد",
+    "drawerFloat": "نقد للوردية التالية",
+    "closedBy": "أغلق بواسطة",
+    "varianceReason": "سبب الزيادة/النقص",
+    "batchTotals": "إجماليات الدفعات",
+    "systemAmount": "النظام",
+    "batchAmount": "الدفعة",
+    "shiftRecap": "ملخص الوردية",
+    "paidOrders": "طلبات مدفوعة",
+    "discounts": "خصومات",
+    "serviceCharge": "رسوم خدمة",
+    "tips": "بقشيش",
+    "voids": "إلغاءات",
+    "refunds": "استردادات",
+    "closingsForDay": "إغلاقات هذا اليوم",
+    "closingsCount": "{{count}} إغلاقات"
   },
   "metrics": {
     "gross": "إجمالي",

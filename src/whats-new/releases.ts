@@ -7,6 +7,16 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-09-26',
+    title: 'Restaurant drawer close',
+    items: [
+      'Day closing is a cash-only drawer: expected cash, drop to the safe, over/short with a required reason, and cash left for the next shift.',
+      'Card and other tenders stay out of the float and get a batch check against the system total.',
+      'Open checks are listed before Complete, and a shift recap shows discounts, tax, service charge, tips, voids, and refunds.',
+      'The drawer summary is visible while counting, and Complete records who closed.',
+    ],
+  },
+  {
     date: '2026-09-24',
     title: 'Durable local-to-cloud sync',
     items: [
@@ -30,6 +40,8 @@ export const RELEASES: ReleaseNotes[] = [
       'Cash closings are saved per shift for the same business day, so a second shift no longer overwrites the first.',
       'Cash Closing report lists every closing for the day with a shift selector and itemized paid transactions (filtered by shift when set).',
       'Completing any closing still ends order-taking for the whole day — use Save draft for mid-day shift handoffs.',
+      'Previous closing balance is read-only and comes from the last completed closing’s outstanding balance.',
+      'Cash Closing report filter can pick an optional shift to open only that closing, or leave empty to switch between all closings for the day.',
     ],
   },
   {
@@ -53,6 +65,24 @@ export const RELEASES: ReleaseNotes[] = [
     title: 'Closing payment totals',
     items: [
       'Day closing payment type totals now use the same applied amounts as Summary (tendered cash minus change), instead of raw tendered amounts.',
+    ],
+  },
+  {
+    date: '2026-09-19',
+    title: 'Configurable invoice number policies',
+    items: [
+      'Settings → Invoice numbers lets each restaurant choose how POS invoices are minted (gateway / terminal pool / hybrid), reset (day / month / year / never), scoped (restaurant / branch / terminal), and formatted with tokens such as {prefix}{yyyy}-{seq}.',
+      'The default stays Date Reset: shared daily 1, 2, 3… from the gateway, with a temporary local code offline until sync. Formatted labels are snapshotted on the order so changing the policy later does not rewrite old checks.',
+      'Terminal, pool, and hybrid presets warn about fiscal gaps and require acknowledgement. Fiscal submit still uses the integer invoice number; authority numbers stay on fiscal submissions.',
+    ],
+  },
+  {
+    date: '2026-09-19',
+    title: 'Gateway-assigned invoice numbers',
+    items: [
+      'POS invoice numbers are assigned by the gateway when the order is created on the server, so every till shares one daily sequence (1, 2, 3…) with no reserved-block jumps.',
+      'New checks can be taken offline without an invoice number; kitchen and floor keep working. Until sync, the check shows a 6-character local code (e.g. ABC123). The real number replaces it after the gateway assigns it.',
+      'Fiscal submit waits until that number exists and uses the same invoice number. Split and merge children also get numbers from the gateway, not from a local 200-block. Auto / receipt ids still use reserved pools.',
     ],
   },
   {
