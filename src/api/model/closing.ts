@@ -12,6 +12,8 @@ export interface TerminalCash {
 export type TerminalDenomination = {
   notes: Record<string, number>;
   coins: Record<string, number>;
+  /** Set when the terminal was counted as a single total instead of by bill/coin. */
+  manual_total?: number | null;
 };
 
 export interface PaymentSummary {

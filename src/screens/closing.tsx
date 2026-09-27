@@ -82,6 +82,7 @@ const normalizeTerminalDenomination = (input?: Partial<TerminalDenomination>): T
       acc[denomination] = normalizeDenominationValue(input?.coins?.[denomination]);
       return acc;
     }, {} as Record<string, number>),
+    manual_total: input?.manual_total ?? null,
   };
 };
 
@@ -137,6 +138,10 @@ export const Closing = () => {
   const getTerminalAmount = useCallback((terminalId: string) => {
     const terminal = terminalDenominations[terminalId];
     if (!terminal) return 0;
+
+    if (terminal.manual_total != null) {
+      return safeNumber(terminal.manual_total);
+    }
 
     const notesAmount = Object.entries(terminal.notes).reduce((sum, [denomination, qty]) => {
       return sum + Number(denomination) * Number(qty || 0);
@@ -420,6 +425,32 @@ export const Closing = () => {
           }
         }
       };
+    });
+  };
+
+  const getTerminalMode = (terminalId: string): "breakdown" | "total" =>
+    terminalDenominations[terminalId]?.manual_total != null ? "total" : "breakdown";
+
+  const setTerminalMode = (terminalId: string, mode: "breakdown" | "total") => {
+    if (isReadOnly) return;
+
+    setTerminalDenominations(prev => {
+      const current = normalizeTerminalDenomination(prev[terminalId]);
+      if (mode === "breakdown") {
+        return {...prev, [terminalId]: {...current, manual_total: null}};
+      }
+      // Switching to "enter total" — start from whatever the bill/coin count
+      // already adds up to, so the number doesn't reset to zero.
+      return {...prev, [terminalId]: {...current, manual_total: getTerminalAmount(terminalId)}};
+    });
+  };
+
+  const updateTerminalManualTotal = (terminalId: string, value: number) => {
+    if (isReadOnly) return;
+
+    setTerminalDenominations(prev => {
+      const current = normalizeTerminalDenomination(prev[terminalId]);
+      return {...prev, [terminalId]: {...current, manual_total: safeNumber(value)}};
     });
   };
 
@@ -812,60 +843,97 @@ export const Closing = () => {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <div className="font-semibold mb-2">{t("closing:terminal.notes")}</div>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                        {DENOMINATION_NOTES.map(denomination => (
-                          <div key={denomination}>
-                            <Input
-                              key={`${terminal.terminal_id}_note_${denomination}`}
-                              type="number"
-                              value={terminalDenominations[terminal.terminal_id]?.notes?.[String(denomination)] ?? 0}
-                              onChange={(e) => updateTerminalDenomination(
-                                terminal.terminal_id,
-                                "notes",
-                                denomination,
-                                Number(e.target.value)
-                              )}
-                              label={t("closing:terminal.denomination", {value: denomination})}
-                              placeholder={t("closing:terminal.denomination", {value: denomination})}
-                              min={0}
-                              step={1}
-                              enableKeyboard
-                              disabled={isReadOnly}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="font-semibold mb-2">{t("closing:terminal.coins")}</div>
-                      <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                        {DENOMINATION_COINS.map(denomination => (
-                          <div key={denomination}>
-                            <Input
-                              key={`${terminal.terminal_id}_coin_${denomination}`}
-                              type="number"
-                              value={terminalDenominations[terminal.terminal_id]?.coins?.[String(denomination)] ?? 0}
-                              onChange={(e) => updateTerminalDenomination(
-                                terminal.terminal_id,
-                                "coins",
-                                denomination,
-                                Number(e.target.value)
-                              )}
-                              placeholder={t("closing:terminal.denomination", {value: denomination})}
-                              label={t("closing:terminal.denomination", {value: denomination})}
-                              min={0}
-                              step={1}
-                              enableKeyboard
-                              disabled={isReadOnly}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="flex gap-2 mb-4">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={getTerminalMode(terminal.terminal_id) === "breakdown" ? "primary" : "secondary"}
+                      disabled={isReadOnly}
+                      onClick={() => setTerminalMode(terminal.terminal_id, "breakdown")}
+                    >
+                      {t("closing:terminal.mode.breakdown", {defaultValue: "Count bills"})}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={getTerminalMode(terminal.terminal_id) === "total" ? "primary" : "secondary"}
+                      disabled={isReadOnly}
+                      onClick={() => setTerminalMode(terminal.terminal_id, "total")}
+                    >
+                      {t("closing:terminal.mode.total", {defaultValue: "Enter total"})}
+                    </Button>
                   </div>
+
+                  {getTerminalMode(terminal.terminal_id) === "total" ? (
+                    <Input
+                      key={`${terminal.terminal_id}_manual_total`}
+                      type="number"
+                      value={terminalDenominations[terminal.terminal_id]?.manual_total ?? 0}
+                      onChange={(e) => updateTerminalManualTotal(terminal.terminal_id, Number(e.target.value))}
+                      label={t("closing:terminal.mode.totalLabel", {defaultValue: "Counted cash total"})}
+                      placeholder={t("closing:terminal.mode.totalLabel", {defaultValue: "Counted cash total"})}
+                      min={0}
+                      step="0.01"
+                      enableKeyboard
+                      inputSize="lg"
+                      disabled={isReadOnly}
+                    />
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <div className="font-semibold mb-2">{t("closing:terminal.notes")}</div>
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                          {DENOMINATION_NOTES.map(denomination => (
+                            <div key={denomination}>
+                              <Input
+                                key={`${terminal.terminal_id}_note_${denomination}`}
+                                type="number"
+                                value={terminalDenominations[terminal.terminal_id]?.notes?.[String(denomination)] ?? 0}
+                                onChange={(e) => updateTerminalDenomination(
+                                  terminal.terminal_id,
+                                  "notes",
+                                  denomination,
+                                  Number(e.target.value)
+                                )}
+                                label={t("closing:terminal.denomination", {value: denomination})}
+                                placeholder={t("closing:terminal.denomination", {value: denomination})}
+                                min={0}
+                                step={1}
+                                enableKeyboard
+                                disabled={isReadOnly}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-semibold mb-2">{t("closing:terminal.coins")}</div>
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                          {DENOMINATION_COINS.map(denomination => (
+                            <div key={denomination}>
+                              <Input
+                                key={`${terminal.terminal_id}_coin_${denomination}`}
+                                type="number"
+                                value={terminalDenominations[terminal.terminal_id]?.coins?.[String(denomination)] ?? 0}
+                                onChange={(e) => updateTerminalDenomination(
+                                  terminal.terminal_id,
+                                  "coins",
+                                  denomination,
+                                  Number(e.target.value)
+                                )}
+                                placeholder={t("closing:terminal.denomination", {value: denomination})}
+                                label={t("closing:terminal.denomination", {value: denomination})}
+                                min={0}
+                                step={1}
+                                enableKeyboard
+                                disabled={isReadOnly}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-4 p-3 bg-surface rounded-lg font-semibold text-foreground">
                     {t("closing:terminal.total", {amount: withCurrency(getTerminalAmount(terminal.terminal_id))})}
