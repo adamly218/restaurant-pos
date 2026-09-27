@@ -74,6 +74,7 @@ export const withCurrency = (
 
   if (!showSymbol) {
     return new Intl.NumberFormat(import.meta.env.VITE_LOCALE, {
+      minimumFractionDigits: decimalPlaces,
       maximumFractionDigits: decimalPlaces,
     }).format(Number(amount));
   }
@@ -81,6 +82,7 @@ export const withCurrency = (
   return new Intl.NumberFormat(import.meta.env.VITE_LOCALE, {
     style: "currency",
     currency: safeCurrency,
+    minimumFractionDigits: decimalPlaces,
     maximumFractionDigits: decimalPlaces,
   }).format(Number(amount));
 };
