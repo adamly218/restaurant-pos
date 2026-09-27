@@ -206,7 +206,7 @@ export const CashClosingReport = () => {
       ? t('labels.closingsCount', { count: closings.length, defaultValue: `${closings.length} closings` })
       : null,
   ].filter(Boolean).join(" · ");
-  const openingBalance = Number((closing as any)?.previous_day_balance ?? closing?.opening_balance ?? 0);
+  const openingBalance = Number((closing as any)?.previous_day_balance ?? (closing as any)?.opening_balance ?? 0);
   const totalCash = Number((closing?.terminal_cash || []).reduce((sum, item: any) => sum + Number(item?.cash_amount || 0), 0));
   const totalOtherPayments = Number((closing?.payments_data || [])
     .filter((item: any) => String(item?.payment_type?.type || "").toLowerCase() !== "cash")
