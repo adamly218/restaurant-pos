@@ -43,7 +43,8 @@
     "openChecks": "Additions ouvertes",
     "shiftRecap": "Récapitulatif du service",
     "notes": "Notes",
-    "summary": "Résumé du tiroir"
+    "summary": "Résumé du tiroir",
+    "selfOrders": "Commandes QR en libre-service"
   },
   "fields": {
     "previousDayBalance": "Solde du jour précédent",
@@ -122,5 +123,11 @@
     "skippedSuffix": " ({{count}} ignoré(s))",
     "executionFailed": "Échec de la clôture automatique des tickets",
     "warning": "Les tickets seront clôturés automatiquement dans {{countdown}}"
+  },
+  "selfOrders": {
+    "hint": "Payées en ligne par les clients à table — hors caisse et hors lot carte ci-dessus.",
+    "orders": "Commandes QR",
+    "total": "Payé en ligne",
+    "testWarning": "{{count}} commande(s) de test ({{amount}}) — aucun argent encaissé."
   }
 }
