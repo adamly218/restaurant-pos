@@ -43,7 +43,8 @@
     "openChecks": "Open checks",
     "shiftRecap": "Shift recap",
     "notes": "Notes",
-    "summary": "Drawer summary"
+    "summary": "Drawer summary",
+    "selfOrders": "QR self-orders"
   },
   "fields": {
     "previousDayBalance": "Previous float",
@@ -122,5 +123,11 @@
     "skippedSuffix": " ({{count}} skipped)",
     "executionFailed": "Failed to auto-close checks",
     "warning": "Checks will auto-close in {{countdown}}"
+  },
+  "selfOrders": {
+    "hint": "Paid online by guests at their table — not in the cash drawer or card batch above.",
+    "orders": "QR orders",
+    "total": "Paid online",
+    "testWarning": "{{count}} test order(s) ({{amount}}) — no money was collected for these."
   }
 }

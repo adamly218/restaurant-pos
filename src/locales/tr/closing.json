@@ -43,7 +43,8 @@
     "openChecks": "Açık adisyonlar",
     "shiftRecap": "Vardiya özeti",
     "notes": "Notlar",
-    "summary": "Çekmece özeti"
+    "summary": "Çekmece özeti",
+    "selfOrders": "QR self-siparişler"
   },
   "fields": {
     "previousDayBalance": "Önceki Gün Bakiyesi",
@@ -122,5 +123,11 @@
     "skippedSuffix": " ({{count}} atlandı)",
     "executionFailed": "Adisyonlar otomatik kapatılamadı",
     "warning": "Adisyonlar {{countdown}} içinde otomatik kapanacak"
+  },
+  "selfOrders": {
+    "hint": "Misafirler tarafından masada çevrimiçi ödendi — yukarıdaki kasa çekmecesine veya kart grubuna dahil değil.",
+    "orders": "QR siparişleri",
+    "total": "Çevrimiçi ödenen",
+    "testWarning": "{{count}} test siparişi ({{amount}}) — bunlar için para tahsil edilmedi."
   }
 }

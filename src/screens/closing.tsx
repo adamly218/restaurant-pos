@@ -45,6 +45,11 @@ import { publishDayClosed } from "@/integrations/events/publish/ops.ts";
 import { entityAfterWrite } from "@/integrations/events/publish/entity.ts";
 import { recordIdToString } from "@/api/reports/shared/records.ts";
 import {OrderStatus} from "@/api/model/order.ts";
+import {
+  EXCLUDE_QR_ORDERS_SQL,
+  fetchSelfOrderClosing,
+  SelfOrderClosingSummary,
+} from "@/lib/self-order-closing.ts";
 
 const DEFAULT_TERMINALS: TerminalCash[] = [
   {terminal_id: "terminal_1", terminal_name: "Terminal 1", cash_amount: 0},
@@ -126,6 +131,7 @@ export const Closing = () => {
   const [paymentSummaries, setPaymentSummaries] = useState<PaymentSummary[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [notes, setNotes] = useState<string>("");
+  const [selfOrders, setSelfOrders] = useState<{ summary: SelfOrderClosingSummary } | null>(null);
 
   const today = LuxonDateTime.now().toFormat(import.meta.env.VITE_DATE_FORMAT);
   const closingWindowLabel = useMemo(() => {
@@ -171,6 +177,7 @@ export const Closing = () => {
           WHERE created_at >= $start
             AND created_at <= $end
             AND status = 'Paid'
+            ${EXCLUDE_QR_ORDERS_SQL}
             ${shiftFilterSql}
               FETCH payments
               , payments.payment_type
@@ -215,6 +222,7 @@ export const Closing = () => {
         WHERE created_at >= $start
           AND created_at <= $end
           AND status = $paid
+          ${EXCLUDE_QR_ORDERS_SQL}
           ${shiftFilterSql}
         GROUP ALL
       `, {...params, paid: OrderStatus.Paid});
@@ -328,6 +336,14 @@ export const Closing = () => {
       } else {
         setShiftRecap(await fetchShiftRecap());
       }
+
+      // QR self-orders get their own summary (details live in the Cash Closing report);
+      // a completed closing keeps its snapshot totals.
+      setSelfOrders({
+        summary: cycleClosing?.status === "completed" && cycleClosing.shift_recap?.self_order
+          ? cycleClosing.shift_recap.self_order
+          : (await fetchSelfOrderClosing(db, resolvedWindow.window)).summary,
+      });
 
       const open = await listOpenOrdersInCurrentCycle(db);
       setOpenChecks(open);
@@ -638,7 +654,10 @@ export const Closing = () => {
         terminal_cash: computedTerminalCash,
         payments_data: paymentSummaries,
         batch_totals: batchTotals,
-        shift_recap: recap,
+        shift_recap: {
+          ...recap,
+          self_order: (await fetchSelfOrderClosing(db, windowForSave)).summary,
+        },
         variance_reason: varianceReason.trim() || null,
         expenses_data: expenses,
         expenses: totalExpenses,
@@ -1119,6 +1138,41 @@ export const Closing = () => {
               </div>
             )}
           </div>
+
+          {selfOrders && selfOrders.summary.orders > 0 && (
+            <div className="bg-surface-elevated rounded-lg shadow-md p-6 mb-8" data-testid="closing-self-order-section">
+              <h2 className="text-xl font-semibold">{t("closing:sections.selfOrders")}</h2>
+              <p className="text-sm text-muted mb-4">{t("closing:selfOrders.hint")}</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="border rounded-lg p-3">
+                  <div className="text-xs text-muted">{t("closing:selfOrders.orders")}</div>
+                  <div className="text-lg font-semibold">{selfOrders.summary.orders}</div>
+                </div>
+                <div className="border rounded-lg p-3">
+                  <div className="text-xs text-muted">{t("closing:selfOrders.total")}</div>
+                  <div className="text-lg font-semibold tabular-nums">{withCurrency(selfOrders.summary.total)}</div>
+                </div>
+                <div className="border rounded-lg p-3">
+                  <div className="text-xs text-muted">{t("closing:recap.tax")}</div>
+                  <div className="text-lg font-semibold tabular-nums">{withCurrency(selfOrders.summary.tax)}</div>
+                </div>
+                {selfOrders.summary.by_payment_type.map((row) => (
+                  <div key={row.payment_type_id} className="border rounded-lg p-3">
+                    <div className="text-xs text-muted">{row.payment_type_name}</div>
+                    <div className="text-lg font-semibold tabular-nums">{withCurrency(row.amount)}</div>
+                  </div>
+                ))}
+              </div>
+              {selfOrders.summary.test_orders > 0 && (
+                <p className="mt-3 text-sm text-warning">
+                  {t("closing:selfOrders.testWarning", {
+                    count: selfOrders.summary.test_orders,
+                    amount: withCurrency(selfOrders.summary.test_total),
+                  })}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="bg-surface-elevated rounded-lg shadow-md p-6 mb-8" data-testid="closing-shift-recap-section">
             <h2 className="text-xl font-semibold mb-4">{t("closing:sections.shiftRecap")}</h2>

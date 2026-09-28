@@ -8,6 +8,12 @@ import {OrderStatus} from "@/api/model/order.ts";
 import {Button} from "@/components/common/input/button.tsx";
 import {cn, toRecordId, withCurrency} from "@/lib/utils.ts";
 import {getBusinessDayUnixRange, toLuxonDateTime, toSurrealDateTime} from "@/lib/datetime.ts";
+import {
+  EXCLUDE_QR_ORDERS_SQL,
+  fetchSelfOrderClosing,
+  SelfOrderClosingRow,
+  SelfOrderClosingSummary,
+} from "@/lib/self-order-closing.ts";
 
 const TRANSACTION_STATUSES = [OrderStatus.Paid, OrderStatus.Refunded, OrderStatus.Cancelled];
 
@@ -56,6 +62,7 @@ export const CashClosingReport = () => {
   const [closings, setClosings] = useState<Closing[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const [selfOrders, setSelfOrders] = useState<{ summary: SelfOrderClosingSummary; rows: SelfOrderClosingRow[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +148,7 @@ export const CashClosingReport = () => {
             WHERE created_at >= $start
               AND created_at <= $end
               AND status IN $statuses
+              ${EXCLUDE_QR_ORDERS_SQL}
               ${shiftId ? `AND (cashier.user_shift = $shiftId OR user.user_shift = $shiftId)` : ""}
             ORDER BY created_at ASC
             FETCH payments, payments.payment_type
@@ -188,9 +196,15 @@ export const CashClosingReport = () => {
         }
 
         setTransactions(flattened);
+
+        // QR self-orders are paid online — listed on their own, never mixed into the till.
+        const qr = await fetchSelfOrderClosing({query: queryRef.current}, closing);
+        const stored = (closing as any)?.shift_recap?.self_order as SelfOrderClosingSummary | undefined;
+        setSelfOrders({summary: stored ?? qr.summary, rows: qr.rows});
       } catch (err) {
         console.error("Failed to load closing transactions", err);
         setTransactions([]);
+        setSelfOrders(null);
       } finally {
         setTransactionsLoading(false);
       }
@@ -471,6 +485,64 @@ export const CashClosingReport = () => {
                 </tbody>
               </table>
             </div>
+
+            {selfOrders && selfOrders.summary.orders > 0 && (
+              <div className="overflow-hidden rounded-lg border border-border" data-testid="cash-closing-self-orders">
+                <div className="bg-surface px-6 py-3">
+                  <h3 className="text-sm font-semibold text-foreground">{t('labels.selfOrders')}</h3>
+                  <p className="text-xs text-muted">{t('labels.selfOrdersHint')}</p>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4">
+                  <div><div className="text-xs text-muted">{t('labels.paidOrders')}</div><div className="font-semibold">{selfOrders.summary.orders}</div></div>
+                  <div><div className="text-xs text-muted">{t('labels.selfOrdersTotal')}</div><div className="font-semibold">{withCurrency(selfOrders.summary.total)}</div></div>
+                  <div><div className="text-xs text-muted">{t('columns.tax')}</div><div className="font-semibold">{withCurrency(selfOrders.summary.tax)}</div></div>
+                  {selfOrders.summary.by_payment_type.map((row) => (
+                    <div key={row.payment_type_id}><div className="text-xs text-muted">{row.payment_type_name}</div><div className="font-semibold">{withCurrency(row.amount)}</div></div>
+                  ))}
+                </div>
+                {selfOrders.summary.test_orders > 0 && (
+                  <p className="px-6 pb-3 text-sm text-warning">
+                    {t('labels.selfOrdersTestWarning', {
+                      count: selfOrders.summary.test_orders,
+                      amount: withCurrency(selfOrders.summary.test_total),
+                    })}
+                  </p>
+                )}
+                <table className="min-w-full divide-y divide-neutral-200">
+                  <thead className="bg-surface">
+                    <tr>
+                      <th className="py-3 pl-6 pr-3 text-left text-xs font-semibold text-foreground">{t('columns.invoice')}</th>
+                      <th className="py-3 px-3 text-left text-xs font-semibold text-foreground">{t('columns.time')}</th>
+                      <th className="py-3 px-3 text-left text-xs font-semibold text-foreground">{t('columns.table')}</th>
+                      <th className="py-3 px-3 text-left text-xs font-semibold text-foreground">{t('columns.paymentMethod')}</th>
+                      <th className="py-3 px-3 text-right text-xs font-semibold text-foreground">{t('columns.amount')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100 bg-surface-elevated">
+                    {selfOrders.rows.map((row, index) => (
+                      <tr key={`${row.orderId}_${index}`}>
+                        <td className="py-3 pl-6 pr-3 text-sm text-foreground">#{row.invoiceNumber}</td>
+                        <td className="py-3 px-3 text-sm text-foreground">{toLuxonDateTime(row.createdAt as any).toFormat("HH:mm")}</td>
+                        <td className="py-3 px-3 text-sm text-foreground">{row.table || "-"}</td>
+                        <td className="py-3 px-3 text-sm text-foreground">
+                          {row.paymentTypeName}
+                          {row.isTest && (
+                            <span className="ml-2 px-2 py-0.5 rounded text-xs bg-warning-100 text-warning-800">{t('labels.testPayment')}</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-right text-sm text-foreground">{withCurrency(row.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-surface">
+                    <tr>
+                      <td colSpan={4} className="py-3 pl-6 pr-3 text-sm font-semibold text-foreground">{t('labels.selfOrdersTotal')}</td>
+                      <td className="py-3 px-3 text-right text-sm font-bold text-foreground">{withCurrency(selfOrders.summary.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
 
             <div className="overflow-hidden rounded-lg border border-border">
               <h3 className="bg-surface px-6 py-3 text-sm font-semibold text-foreground">{t('labels.transactions')}</h3>

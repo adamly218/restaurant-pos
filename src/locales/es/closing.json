@@ -43,7 +43,8 @@
     "openChecks": "Cuentas abiertas",
     "shiftRecap": "Resumen del turno",
     "notes": "Notas",
-    "summary": "Resumen del cajón"
+    "summary": "Resumen del cajón",
+    "selfOrders": "Autopedidos QR"
   },
   "fields": {
     "previousDayBalance": "Saldo del día anterior",
@@ -122,5 +123,11 @@
     "skippedSuffix": " ({{count}} omitida(s))",
     "executionFailed": "Error al cerrar cuentas automáticamente",
     "warning": "Las cuentas se cerrarán automáticamente en {{countdown}}"
+  },
+  "selfOrders": {
+    "hint": "Pagados en línea por los clientes en su mesa — no están en la caja ni en el lote de tarjetas de arriba.",
+    "orders": "Pedidos QR",
+    "total": "Pagado en línea",
+    "testWarning": "{{count}} pedido(s) de prueba ({{amount}}) — no se cobró dinero por ellos."
   }
 }
