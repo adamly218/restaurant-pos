@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Resolver, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
@@ -199,6 +199,12 @@ export const UserRoleForm = ({ open, onClose, data }: Props) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedSet, setSelectedSet] = useState<Set<string>>(() => new Set());
+  // Mirrors selectedSet so updateRoles can build the next set from the latest
+  // value outside of a state updater (updaters must stay pure).
+  const selectedSetRef = useRef(selectedSet);
+  useEffect(() => {
+    selectedSetRef.current = selectedSet;
+  }, [selectedSet]);
   const [expandedModules, setExpandedModules] = useState<Set<string>>(() => new Set());
   const { t, i18n } = useTranslation(["admin", "common", "validation", "toast"]);
 
@@ -245,14 +251,13 @@ export const UserRoleForm = ({ open, onClose, data }: Props) => {
   // discard a change just made in another group).
   const updateRoles = useCallback(
     (updater: (prev: Set<string>) => Set<string>) => {
-      setSelectedSet((prev) => {
-        const next = updater(prev);
-        setValue("roles", [...next], { shouldDirty: true, shouldValidate: false });
-        if (next.size > 0) {
-          clearErrors("roles");
-        }
-        return next;
-      });
+      const next = updater(selectedSetRef.current);
+      selectedSetRef.current = next;
+      setSelectedSet(next);
+      setValue("roles", [...next], { shouldDirty: true, shouldValidate: false });
+      if (next.size > 0) {
+        clearErrors("roles");
+      }
     },
     [setValue, clearErrors]
   );

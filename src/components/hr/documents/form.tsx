@@ -27,7 +27,7 @@ import {DocumentCategory} from "@/api/model/hr.types.ts";
 import {useAtom} from "jotai";
 import {appPage} from "@/store/jotai.ts";
 import {nowSurrealDateTime} from "@/lib/datetime.ts";
-import {viewArrayBufferInNewTab} from "@/utils/files.ts";
+import {assertFileWithinLimit, viewArrayBufferInNewTab} from "@/utils/files.ts";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faEye, faFile} from "@fortawesome/free-solid-svg-icons";
 
@@ -237,7 +237,17 @@ export const DocumentForm = ({open, onClose, data}: Props) => {
                   type="file"
                   className="input w-full"
                   onChange={(e: ChangeEvent<HTMLInputElement>) => {
-                    field.onChange(e.target.files?.[0] ?? null);
+                    const picked = e.target.files?.[0] ?? null;
+                    if (picked) {
+                      try {
+                        assertFileWithinLimit(picked);
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : String(error));
+                        e.target.value = "";
+                        return;
+                      }
+                    }
+                    field.onChange(picked);
                   }}
                 />
               )}

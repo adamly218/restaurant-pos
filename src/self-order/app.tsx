@@ -715,7 +715,12 @@ function CheckoutSheet({
   };
 
   const noMethods = menu.paymentMethods.length === 0;
-  const hasInclusive = menu.dishes.some((d) => d.taxMode === 'inclusive');
+  // Whether the current order includes any tax-inclusive item, so the tax rows
+  // are only labelled "(included)" when that's actually true for this order.
+  const hasInclusive = useMemo(() => {
+    const dishes = new Map(menu.dishes.map((d) => [d.id, d]));
+    return lines.some((l) => dishes.get(l.dishId)?.taxMode === 'inclusive');
+  }, [menu, lines]);
 
   return (
     <Sheet

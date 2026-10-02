@@ -75,9 +75,9 @@ export const Login = () => {
   }
 
   const onKey = (key: string) => {
-    if(code.trim().length <= 3){
-      setCode(code + key);
-    }
+    // Functional update so two keystrokes in the same tick can't both read a
+    // stale `code` and drop one of the digits.
+    setCode(prev => (prev.trim().length <= 3 ? prev + key : prev));
   }
 
   // The PIN pad only ever had onClick handlers on its visible buttons — a
@@ -87,6 +87,7 @@ export const Login = () => {
     if (loginMethod !== 'pin') return;
 
     const onPhysicalKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
       if (event.key >= '0' && event.key <= '9') {
         event.preventDefault();
         onKey(event.key);

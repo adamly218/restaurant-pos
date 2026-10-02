@@ -54,7 +54,10 @@ export const withCurrency = (
 ) => {
   const showSymbol = getShowCurrencySymbolInUi();
   const requested = (currency || import.meta.env.VITE_CURRENCY || "USD").toUpperCase();
-  const safeCurrency = isValidCurrencyCode(requested) ? requested : import.meta.env.VITE_CURRENCY;
+  // Fall back to a known-valid code. Falling back to VITE_CURRENCY would
+  // re-select the invalid value that triggered the fallback in the first place,
+  // and Intl.NumberFormat throws on an unknown currency.
+  const safeCurrency = isValidCurrencyCode(requested) ? requested : "USD";
 
   if (amount === undefined) {
     if (!showSymbol) {
