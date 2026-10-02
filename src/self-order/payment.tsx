@@ -33,8 +33,13 @@ function StripeForm({ returnUrl, amountLabel, busy, onPaid, onError }: Omit<Stri
         onError(error.message || 'Payment failed. Please try again.');
         return;
       }
-      if (paymentIntent && (paymentIntent.status === 'succeeded' || paymentIntent.status === 'requires_capture' || paymentIntent.status === 'processing')) {
+      // Only release the order once funds are guaranteed. `processing` is
+      // transient and can still fail — releasing there would send food to the
+      // kitchen for a payment that never settles.
+      if (paymentIntent && (paymentIntent.status === 'succeeded' || paymentIntent.status === 'requires_capture')) {
         onPaid();
+      } else if (paymentIntent?.status === 'processing') {
+        onError('Your bank is still processing this payment. Please wait a moment and try again — if you were charged, ask a staff member.');
       } else {
         onError(`Payment not completed (${paymentIntent?.status ?? 'unknown'}).`);
       }

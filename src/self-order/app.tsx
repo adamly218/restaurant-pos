@@ -57,6 +57,10 @@ const optionNames = (dish: MenuDish, modifiers: Record<string, string[]>) =>
 
 const tableLabel = (menu: PublicMenu) => [menu.table.floor, `Table ${menu.table.number || menu.table.name}`].filter(Boolean).join(' · ');
 
+/** A checkout that is paid and on its way to the kitchen. */
+const isSettled = (status: CheckoutStatus) =>
+  status.status === 'paid' || status.status === 'submitted';
+
 /* ------------------------------------------------------------------ shell */
 
 export function SelfOrderApp({ token, returningCheckoutId }: { token: string; returningCheckoutId: string | null }) {
@@ -83,7 +87,11 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
   const finish = (status: CheckoutStatus) => {
     setDone(status);
     storage.set(`so-done:${token}`, status);
-    setCart([]);
+    // Keep the cart when payment didn't settle, so the guest can retry instead
+    // of losing their order.
+    if (isSettled(status)) {
+      setCart([]);
+    }
     setSheet('none');
     window.scrollTo({ top: 0 });
   };
@@ -146,6 +154,15 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
 
   return (
     <div className="mx-auto min-h-screen max-w-xl pb-32">
+      {error && (
+        <div className="sticky top-0 z-30 flex items-start justify-between gap-3 border-b border-[#e2b8a3] bg-[#f8e9e1] px-4 py-3 text-sm text-[#7a3517]">
+          <p>{error}</p>
+          <button className="shrink-0 font-semibold underline" onClick={() => setError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <MenuView
         menu={menu}
         onPick={(dish) => {
@@ -804,28 +821,34 @@ function CheckoutSheet({
 
       {checkout && (
         <div className="mt-6">
-          <Suspense fallback={<p className="so-serif py-8 text-center text-lg italic text-[color:var(--so-muted)]">Loading secure payment…</p>}>
-            {checkout.gateway === 'stripe' && checkout.payment && (
-              <StripePay
-                publishableKey={checkout.payment.publishableKey ?? ''}
-                clientSecret={checkout.payment.clientToken ?? ''}
-                returnUrl={returnUrl(checkout.checkoutId)}
-                amountLabel={formatMoney(checkout.quote.total, checkout.quote.currency)}
-                busy={busy}
-                onPaid={() => confirm(checkout.checkoutId)}
-                onError={(message) => setError({ message })}
-              />
-            )}
-            {checkout.gateway === 'paypal' && checkout.payment && (
-              <PaypalPay
-                clientId={checkout.payment.clientId ?? ''}
-                orderId={checkout.payment.intentId}
-                currency={checkout.quote.currency}
-                onApproved={() => confirm(checkout.checkoutId)}
-                onError={(message) => setError({ message })}
-              />
-            )}
-          </Suspense>
+          {!checkout.payment || (checkout.gateway !== 'stripe' && checkout.gateway !== 'paypal') ? (
+            <div className="rounded-2xl border border-[#e2b8a3] bg-[#f8e9e1] p-4 text-sm text-[#7a3517]">
+              <p>We couldn’t start this payment. Please choose another method, or ask a staff member to take your order.</p>
+            </div>
+          ) : (
+            <Suspense fallback={<p className="so-serif py-8 text-center text-lg italic text-[color:var(--so-muted)]">Loading secure payment…</p>}>
+              {checkout.gateway === 'stripe' && checkout.payment && (
+                <StripePay
+                  publishableKey={checkout.payment.publishableKey ?? ''}
+                  clientSecret={checkout.payment.clientToken ?? ''}
+                  returnUrl={returnUrl(checkout.checkoutId)}
+                  amountLabel={formatMoney(checkout.quote.total, checkout.quote.currency)}
+                  busy={busy}
+                  onPaid={() => confirm(checkout.checkoutId)}
+                  onError={(message) => setError({ message })}
+                />
+              )}
+              {checkout.gateway === 'paypal' && checkout.payment && (
+                <PaypalPay
+                  clientId={checkout.payment.clientId ?? ''}
+                  orderId={checkout.payment.intentId}
+                  currency={checkout.quote.currency}
+                  onApproved={() => confirm(checkout.checkoutId)}
+                  onError={(message) => setError({ message })}
+                />
+              )}
+            </Suspense>
+          )}
           {busy && <p className="so-serif mt-4 text-center text-lg italic text-[color:var(--so-muted)]">Sending your order to the kitchen…</p>}
           {!busy && (
             <button
@@ -864,6 +887,31 @@ function DoneScreen({
   tableLabel: string;
   onNewOrder: () => void;
 }) {
+  // A checkout that failed/expired/pending must not be presented as paid.
+  if (!isSettled(status)) {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-xl flex-col">
+        <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-paper)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-gold)]/60 text-2xl font-bold text-[color:var(--so-gold-soft)]">
+            !
+          </div>
+          <p className="so-eyebrow mt-6 text-[color:var(--so-gold-soft)]">{restaurantName || 'Payment'}</p>
+          <h1 className="so-serif mt-2 text-[2.1rem] font-bold tracking-tight leading-tight">Payment not completed</h1>
+          <p className="mx-auto mt-3 max-w-xs text-[0.95rem] leading-relaxed text-[color:var(--so-paper)]/75">
+            {status.message ||
+              'Your payment didn’t go through, so no order was sent to the kitchen. Your order is still here — you can try again.'}
+          </p>
+        </div>
+
+        <div className="so-safe-bottom mt-auto px-5 pt-8">
+          <button onClick={onNewOrder} className="so-btn-primary justify-center">
+            Try payment again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col">
       <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-paper)]">
