@@ -137,11 +137,11 @@ export function useMasterNotifications() {
       }
     };
 
-    void watch<{id: string; employee?: unknown; clock_in?: unknown; clock_out?: unknown}>(
+    void watch<{id: string; user?: unknown; employee?: unknown; clock_in?: unknown; clock_out?: unknown}>(
       Tables.time_entries,
       async (action, value) => {
         if (action === "CREATE") {
-          if (isSelf(value.employee)) return;
+          if (isSelf(value.user)) return;
           const name = (await resolveName(value.employee)) ?? "Someone";
           const at = value.clock_in ? toLuxonDateTime(value.clock_in as any).toFormat("HH:mm") : "";
           push({
@@ -154,7 +154,7 @@ export function useMasterNotifications() {
           const entryId = refKey(value.id);
           if (notifiedClockOutRef.current.has(entryId)) return;
           notifiedClockOutRef.current.add(entryId);
-          if (isSelf(value.employee)) return;
+          if (isSelf(value.user)) return;
           const name = (await resolveName(value.employee)) ?? "Someone";
           const at = toLuxonDateTime(value.clock_out as any).toFormat("HH:mm");
           push({

@@ -22,7 +22,12 @@
     "coins": "Monedas",
     "denomination": "x {{value}}",
     "total": "Total de terminal: {{amount}}",
-    "add": "Agregar terminal"
+    "add": "Agregar terminal",
+    "mode": {
+      "breakdown": "Contar billetes",
+      "total": "Introducir total",
+      "totalLabel": "Total de efectivo contado"
+    }
   },
   "title": "Cierre diario al {{date}}",
   "loading": "Cargando cierre...",

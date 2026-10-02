@@ -7,6 +7,25 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-10-02',
+    title: 'QR table ordering',
+    items: [
+      'Guests scan a per-table QR code, order from the live menu and pay online (card, PayPal, or a staff-enabled test mode).',
+      'Paid orders are sent to the kitchen screen and every terminal automatically.',
+      'Manage → QR ordering turns it on per table, lets you print a sheet of QR codes, and can retry a paid order that did not reach the POS.',
+      'QR payments stay out of the drawer and appear in their own section on the Closing screen and Cash Closing report.',
+    ],
+  },
+  {
+    date: '2026-10-01',
+    title: 'Payroll overrides and live alerts',
+    items: [
+      'Pay profiles can set daily overtime and night-premium overrides per employee, and preview runs can be deleted.',
+      'Payroll runs show regular, overtime and premium pay separately, and each snapshot keeps the currency it was calculated in.',
+      'A notification banner alerts the Master user to clock in/out, order voids, refunds, large discounts and security alerts in real time.',
+    ],
+  },
+  {
     date: '2026-09-26',
     title: 'Restaurant drawer close',
     items: [

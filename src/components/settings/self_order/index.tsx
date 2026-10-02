@@ -8,6 +8,7 @@ import { Input } from "@/components/common/input/input.tsx";
 import { Switch } from "@/components/common/input/switch.tsx";
 import { Checkbox } from "@/components/common/input/checkbox.tsx";
 import { ReactSelect } from "@/components/common/input/custom.react.select.tsx";
+import { DeleteConfirm } from "@/components/common/table/delete.confirm.tsx";
 import { getAppTimezone } from "@/lib/datetime.ts";
 import { getGatewayBaseUrl } from "@/lib/session.ts";
 import {
@@ -116,9 +117,6 @@ export const AdminSelfOrder = () => {
   };
 
   const updateTable = async (table: SelfOrderTable, body: { regenerate?: boolean; enabled?: boolean }) => {
-    if (body.regenerate && !window.confirm(`Make a new QR code for ${tableTitle(table)}? The old printed code will stop working.`)) {
-      return;
-    }
     try {
       const { table: updated } = await selfOrderAdmin.updateTable(table.id, body);
       setConfig((prev) => prev && { ...prev, tables: prev.tables.map((t) => (t.id === updated.id ? updated : t)) });
@@ -181,8 +179,12 @@ export const AdminSelfOrder = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Input label="Restaurant name (shown on the menu)" value={draft.restaurantName} onChange={(e) => set("restaurantName", e.target.value)} />
-          <Input label="Welcome message" value={draft.welcomeText} placeholder="Order and pay right here — we’ll bring it to your table." onChange={(e) => set("welcomeText", e.target.value)} />
+          <div>
+            <Input label="Restaurant name (shown on the menu)" value={draft.restaurantName} onChange={(e) => set("restaurantName", e.target.value)} />
+          </div>
+          <div>
+            <Input label="Welcome message" value={draft.welcomeText} placeholder="Order and pay right here — we’ll bring it to your table." onChange={(e) => set("welcomeText", e.target.value)} />
+          </div>
 
           <div>
             <label className="mb-1 block">Order type for QR orders</label>
@@ -352,15 +354,21 @@ export const AdminSelfOrder = () => {
                       <QRCode value={link} size={148} />
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="secondary" icon={faCopy} onClick={() => void navigator.clipboard?.writeText(link).then(() => toast.success("Link copied"))}>
+                      <Button size="sm" variant="secondary" icon={faCopy} onClick={() => void navigator.clipboard?.writeText(link).then(() => toast.success("Link copied"), () => toast.error("Could not copy the link"))}>
                         Copy link
                       </Button>
-                      <Button size="sm" variant="secondary" icon={faUpRightFromSquare} onClick={() => window.open(link, "_blank")}>
+                      <Button size="sm" variant="secondary" icon={faUpRightFromSquare} onClick={() => window.open(link, "_blank", "noopener,noreferrer")}>
                         Open
                       </Button>
-                      <Button size="sm" variant="secondary" iconButton onClick={() => void updateTable(table, { regenerate: true })} aria-label="New QR code">
-                        <FontAwesomeIcon icon={faArrowsRotate} />
-                      </Button>
+                      <DeleteConfirm
+                        title="New QR code"
+                        message={`Make a new QR code for ${tableTitle(table)}? The old printed code will stop working.`}
+                        onConfirm={() => updateTable(table, { regenerate: true })}
+                      >
+                        <Button size="sm" variant="secondary" iconButton aria-label="New QR code">
+                          <FontAwesomeIcon icon={faArrowsRotate} />
+                        </Button>
+                      </DeleteConfirm>
                     </div>
                   </div>
                 );

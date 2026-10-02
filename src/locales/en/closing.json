@@ -22,7 +22,12 @@
     "coins": "Coins",
     "denomination": "x {{value}}",
     "total": "Terminal Total: {{amount}}",
-    "add": "Add Terminal"
+    "add": "Add Terminal",
+    "mode": {
+      "breakdown": "Count bills",
+      "total": "Enter total",
+      "totalLabel": "Counted cash total"
+    }
   },
   "title": "Daily Closing as of {{date}}",
   "loading": "Loading closing...",

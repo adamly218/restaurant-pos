@@ -134,7 +134,9 @@
     "invalidModifierGroup": "Modifier-Gruppe ist ungültig",
     "duplicateDishModifierGroup": "Modifier-Gruppe ist diesem Gericht bereits zugewiesen",
     "invalidPriority": "Priorität ist ungültig",
-    "invalidRequiredModifiers": "Wert für erforderliche Modifier ist ungültig"
+    "invalidRequiredModifiers": "Wert für erforderliche Modifier ist ungültig",
+    "loginTaken": "Ein anderer Benutzer hat bereits diese Anmeldung/PIN – wählen Sie eine andere.",
+    "passwordTaken": "Ein anderer Benutzer hat bereits dieses Passwort – wählen Sie ein anderes."
   },
   "settingsDelete": {
     "deactivated": "{{entity}} wird verwendet und wurde deaktiviert.",
@@ -155,5 +157,6 @@
     "finalLimitReached": "Limit für Endrechnung erreicht ({{count}}/{{limit}}). Managerfreigabe erforderlich.",
     "overrideRequired": "Drucklimit überschreiben",
     "recordFailed": "Druck konnte nicht erfasst werden"
-  }
+  },
+  "documentDeleted": "Dokument gelöscht"
 }

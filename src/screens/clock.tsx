@@ -114,7 +114,10 @@ export const Clock = () => {
     return () => {
       cancelled = true;
     };
-  }, [page.user, db]);
+    // `db` is deliberately omitted: useDB returns a new client object on every
+    // render, so including it re-runs this effect (and its query) in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.user]);
 
   const loadTimeEntry = async () => {
     if (!page.user) {
@@ -189,7 +192,10 @@ export const Clock = () => {
     return () => {
       cancelled = true;
     };
-  }, [page.user, db]);
+    // `db` is deliberately omitted: useDB returns a new client object on every
+    // render, so including it re-runs this effect (and its query) in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.user]);
 
   const loadOrders = async () => {
     if (!timeEntry || !page.user) return;

@@ -22,7 +22,12 @@
     "coins": "Moedas",
     "denomination": "x {{value}}",
     "total": "Total do Terminal: {{amount}}",
-    "add": "Adicionar Terminal"
+    "add": "Adicionar Terminal",
+    "mode": {
+      "breakdown": "Contar cédulas",
+      "total": "Inserir total",
+      "totalLabel": "Total de dinheiro contado"
+    }
   },
   "title": "Fechamento Diário em {{date}}",
   "loading": "Carregando fechamento...",

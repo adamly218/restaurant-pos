@@ -134,7 +134,9 @@
     "invalidModifierGroup": "Il gruppo modificatori non è valido",
     "duplicateDishModifierGroup": "Il gruppo modificatori è già collegato a questo piatto",
     "invalidPriority": "La priorità non è valida",
-    "invalidRequiredModifiers": "Il valore dei modificatori obbligatori non è valido"
+    "invalidRequiredModifiers": "Il valore dei modificatori obbligatori non è valido",
+    "loginTaken": "Un altro utente ha già questo accesso/PIN — scegline un altro.",
+    "passwordTaken": "Un altro utente ha già questa password — scegline un'altra."
   },
   "settingsDelete": {
     "deactivated": "{{entity}} è in uso ed è stato disattivato.",
@@ -155,5 +157,6 @@
     "finalLimitReached": "Limite stampa conto finale raggiunto ({{count}}/{{limit}}). Approvazione del manager richiesta.",
     "overrideRequired": "Superare limite di stampa",
     "recordFailed": "Impossibile registrare la stampa"
-  }
+  },
+  "documentDeleted": "Documento eliminato"
 }

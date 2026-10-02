@@ -22,7 +22,12 @@
     "coins": "Munten",
     "denomination": "x {{value}}",
     "total": "Terminaltotaal: {{amount}}",
-    "add": "Terminal toevoegen"
+    "add": "Terminal toevoegen",
+    "mode": {
+      "breakdown": "Biljetten tellen",
+      "total": "Totaal invoeren",
+      "totalLabel": "Geteld contant totaal"
+    }
   },
   "title": "Dagafsluiting per {{date}}",
   "loading": "Afsluiting laden...",

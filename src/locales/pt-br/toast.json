@@ -134,7 +134,9 @@
     "invalidModifierGroup": "Grupo de modificadores é inválido",
     "duplicateDishModifierGroup": "Grupo de modificadores já está vinculado a este prato",
     "invalidPriority": "Prioridade é inválida",
-    "invalidRequiredModifiers": "Valor de modificadores obrigatórios é inválido"
+    "invalidRequiredModifiers": "Valor de modificadores obrigatórios é inválido",
+    "loginTaken": "Outro usuário já tem este login/PIN — escolha outro.",
+    "passwordTaken": "Outro usuário já tem esta senha — escolha outra."
   },
   "settingsDelete": {
     "deactivated": "{{entity}} está em uso e foi desativado.",
@@ -155,5 +157,6 @@
     "finalLimitReached": "Limite de impressão da conta final atingido ({{count}}/{{limit}}). Aprovação do gerente necessária.",
     "overrideRequired": "Substituir limite de impressão",
     "recordFailed": "Falha ao registrar impressão da conta"
-  }
+  },
+  "documentDeleted": "Documento excluído"
 }

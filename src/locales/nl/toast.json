@@ -134,7 +134,9 @@
     "invalidModifierGroup": "Modifiergroep is ongeldig",
     "duplicateDishModifierGroup": "Modifiergroep is al gekoppeld aan dit gerecht",
     "invalidPriority": "Prioriteit is ongeldig",
-    "invalidRequiredModifiers": "Waarde voor verplichte modifiers is ongeldig"
+    "invalidRequiredModifiers": "Waarde voor verplichte modifiers is ongeldig",
+    "loginTaken": "Een andere gebruiker heeft al deze login/PIN — kies een andere.",
+    "passwordTaken": "Een andere gebruiker heeft al dit wachtwoord — kies een ander."
   },
   "settingsDelete": {
     "deactivated": "{{entity}} is in gebruik en is gedeactiveerd.",
@@ -155,5 +157,6 @@
     "finalLimitReached": "Limiet eindrekening bereikt ({{count}}/{{limit}}). Managergoedkeuring vereist.",
     "overrideRequired": "Afdruklimiet overschrijven",
     "recordFailed": "Afdrukregistratie mislukt"
-  }
+  },
+  "documentDeleted": "Document verwijderd"
 }

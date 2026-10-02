@@ -157,5 +157,6 @@
     "finalLimitReached": "Final bill print limit reached ({{count}}/{{limit}}). Manager approval required.",
     "overrideRequired": "Override print limit",
     "recordFailed": "Failed to record bill print"
-  }
+  },
+  "documentDeleted": "Document deleted"
 }

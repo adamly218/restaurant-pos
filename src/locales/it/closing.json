@@ -22,7 +22,12 @@
     "coins": "Monete",
     "denomination": "x {{value}}",
     "total": "Totale terminale: {{amount}}",
-    "add": "Aggiungi terminale"
+    "add": "Aggiungi terminale",
+    "mode": {
+      "breakdown": "Conta banconote",
+      "total": "Inserisci totale",
+      "totalLabel": "Totale contanti contati"
+    }
   },
   "title": "Chiusura giornaliera al {{date}}",
   "loading": "Caricamento chiusura...",

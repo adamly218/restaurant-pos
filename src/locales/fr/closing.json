@@ -22,7 +22,12 @@
     "coins": "Pièces",
     "denomination": "x {{value}}",
     "total": "Total du terminal : {{amount}}",
-    "add": "Ajouter un terminal"
+    "add": "Ajouter un terminal",
+    "mode": {
+      "breakdown": "Compter les billets",
+      "total": "Saisir le total",
+      "totalLabel": "Total des espèces comptées"
+    }
   },
   "title": "Clôture journalière au {{date}}",
   "loading": "Chargement de la clôture...",

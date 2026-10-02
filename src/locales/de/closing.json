@@ -22,7 +22,12 @@
     "coins": "Münzen",
     "denomination": "x {{value}}",
     "total": "Terminal-Gesamt: {{amount}}",
-    "add": "Terminal hinzufügen"
+    "add": "Terminal hinzufügen",
+    "mode": {
+      "breakdown": "Scheine zählen",
+      "total": "Summe eingeben",
+      "totalLabel": "Gezählter Bargeldbetrag"
+    }
   },
   "title": "Tagesabschluss per {{date}}",
   "loading": "Tagesabschluss wird geladen...",

@@ -22,7 +22,12 @@
     "coins": "Bozuk paralar",
     "denomination": "x {{value}}",
     "total": "Terminal Toplamı: {{amount}}",
-    "add": "Terminal Ekle"
+    "add": "Terminal Ekle",
+    "mode": {
+      "breakdown": "Banknot say",
+      "total": "Toplam gir",
+      "totalLabel": "Sayılan nakit toplamı"
+    }
   },
   "title": "{{date}} tarihli Günlük Kapanış",
   "loading": "Kapanış yükleniyor...",
