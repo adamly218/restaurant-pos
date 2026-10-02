@@ -661,6 +661,9 @@ function CheckoutSheet({
   const [method, setMethod] = useState<PaymentMethod | null>(menu.paymentMethods[0] ?? null);
   const [checkout, setCheckout] = useState<CheckoutStart | null>(null);
   const [busy, setBusy] = useState(false);
+  // Stable for one checkout session so a double-tap or retry reuses the same
+  // gateway intent instead of creating a second chargeable one.
+  const idempotencyKey = useRef(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
 
   useEffect(() => {
     api.quote(token, items).then(setQuote, (err: ApiError) => setError({ message: err.message, code: err.code }));
@@ -690,6 +693,7 @@ function CheckoutSheet({
         gateway: method.gateway,
         customerName: name.trim() || undefined,
         notes: notes.trim() || undefined,
+        idempotencyKey: idempotencyKey.current,
       });
       setQuote(started.quote);
       if (started.gateway === 'test') {

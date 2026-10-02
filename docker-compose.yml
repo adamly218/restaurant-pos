@@ -218,7 +218,11 @@ services:
       - SURREAL_PASS=${SURREAL_PASS:?Set SURREAL_PASS in .env}
     command: sh -c "npm install && node server.js"
     ports:
-      - "3142:3142"
+      # Bind to loopback only: nginx (and the Vite dev proxy) reach the
+      # gateway on localhost. Publishing it on all interfaces would let clients
+      # hit the gateway directly and spoof X-Forwarded-For to bypass the
+      # self-order rate limiter.
+      - "127.0.0.1:3142:3142"
     depends_on:
       - surrealdb
 

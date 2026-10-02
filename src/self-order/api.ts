@@ -118,7 +118,7 @@ export const api = {
   quote: (token: string, items: CartItemInput[]) => post<Quote>(`${encodeURIComponent(token)}/quote`, { items }),
   checkout: (
     token: string,
-    body: { items: CartItemInput[]; paymentMethodId: string; gateway: string; customerName?: string; notes?: string },
+    body: { items: CartItemInput[]; paymentMethodId: string; gateway: string; customerName?: string; notes?: string; idempotencyKey?: string },
   ) => post<CheckoutStart>(`${encodeURIComponent(token)}/checkout`, body),
   confirm: (token: string, checkoutId: string) =>
     post<CheckoutStatus>(`${encodeURIComponent(token)}/checkout/${encodeURIComponent(checkoutId)}/confirm`, {}),

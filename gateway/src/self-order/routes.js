@@ -27,14 +27,27 @@ const router = express.Router();
 
 /* Simple fixed-window limiter per client IP for the public endpoints. */
 const WINDOW_MS = 60_000;
+/** Cap tracked clients so an IP-rotating flood can't grow the map unbounded. */
+const MAX_TRACKED_CLIENTS = 10_000;
 const hits = new Map();
 function publicLimit(maxPerMinute) {
   return (req, res, next) => {
-    const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+    // server.js sets `trust proxy`, and nginx overwrites X-Forwarded-For, so
+    // req.ip is the real client. Never read the raw header here — its first
+    // entry is client-controlled.
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
     const key = `${ip}|${maxPerMinute}`;
     const now = Date.now();
     const entry = hits.get(key);
     if (!entry || now - entry.start > WINDOW_MS) {
+      if (hits.size >= MAX_TRACKED_CLIENTS) {
+        // Evict the oldest entries to make room (Map preserves insert order).
+        let evicted = 0;
+        for (const existingKey of hits.keys()) {
+          hits.delete(existingKey);
+          if (++evicted >= Math.floor(MAX_TRACKED_CLIENTS / 2)) break;
+        }
+      }
       hits.set(key, { start: now, count: 1 });
       return next();
     }
@@ -52,11 +65,17 @@ setInterval(() => {
 
 function send(res, err) {
   const known = err instanceof service.SelfOrderError;
-  const status = known ? err.status : Number.isInteger(err.status) && err.status < 500 ? err.status : 500;
-  if (!known) console.error('[self-order]', err);
+  // Preserve upstream service statuses (e.g. the payment sidecar sets 502) so
+  // callers can tell a provider outage from an internal bug.
+  const status = known
+    ? err.status
+    : Number.isInteger(err.status) && err.status >= 400 && err.status < 600
+      ? err.status
+      : 500;
+  if (!known && status >= 500) console.error('[self-order]', err);
   return res.status(status).json({
     ok: false,
-    error: known || status < 500 ? err.message : 'Something went wrong. Please try again.',
+    error: known || status !== 500 ? err.message : 'Something went wrong. Please try again.',
     ...(known && err.code ? { code: err.code } : {}),
   });
 }

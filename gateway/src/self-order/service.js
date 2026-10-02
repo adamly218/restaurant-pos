@@ -66,9 +66,8 @@ function ensureSchema(db) {
 
 const randomKey = (length = 20) => {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  const bytes = crypto.randomBytes(length);
   let out = '';
-  for (let i = 0; i < length; i += 1) out += alphabet[bytes[i] % alphabet.length];
+  for (let i = 0; i < length; i += 1) out += alphabet[crypto.randomInt(alphabet.length)];
   return out;
 };
 
@@ -449,6 +448,12 @@ function buildOrderRows(orderId, priced, createdAt) {
   return { items, kitchens };
 }
 
+/** Extract the bare 24-char key from a `self_order_checkout:<key>` record id. */
+function checkoutKeyFromRecord(record) {
+  const id = String(record?.id ?? '');
+  return id.includes(':') ? id.slice(id.indexOf(':') + 1) : id;
+}
+
 async function startCheckout(db, token, body) {
   const settings = await loadSettings(db);
   if (!settings.enabled) throw new SelfOrderError(403, 'Ordering from the table is not available right now.', 'DISABLED');
@@ -462,6 +467,27 @@ async function startCheckout(db, token, body) {
   const method = methods.find((m) => m.id === methodId && m.gateway === String(body?.gateway || ''))
     ?? methods.find((m) => m.id === methodId);
   if (!method) throw new SelfOrderError(400, 'Please choose a payment method.', 'NO_PAYMENT_METHOD');
+
+  const idempotencyKey = String(body?.idempotencyKey ?? '').trim().slice(0, 64);
+
+  // A retry after a lost response (or a double-tap) must not create a second
+  // gateway intent that could also be paid. If the client supplied a key and a
+  // live checkout already exists for it, return that one.
+  if (idempotencyKey) {
+    const [existingRows] = await db.query(
+      `SELECT * FROM self_order_checkout WHERE token = $token AND idempotency_key = $key AND status != 'expired' ORDER BY created_at DESC LIMIT 1`,
+      { token: String(token), key: idempotencyKey }
+    );
+    const existing = Array.isArray(existingRows) ? existingRows[0] : existingRows;
+    if (existing) {
+      return {
+        checkoutId: checkoutKeyFromRecord(existing),
+        gateway: existing.gateway,
+        quote: existing.quote,
+        payment: existing.payment ?? null,
+      };
+    }
+  }
 
   const checkoutId = randomKey(24);
   const orderId = `order:${randomKey()}`;
@@ -482,11 +508,24 @@ async function startCheckout(db, token, body) {
     });
   }
 
+  // Persist the client-facing payment payload so an idempotent retry returns
+  // the same intent rather than minting (and possibly charging) another.
+  const payment = intent
+    ? {
+        intentId: intent.intentId,
+        clientToken: intent.clientToken ?? null,
+        publishableKey: intent.gatewayPayload?.publishableKey ?? null,
+        clientId: intent.gatewayPayload?.clientId ?? null,
+        mode: intent.gatewayPayload?.mode ?? null,
+      }
+    : null;
+
   await db.query(`CREATE type::record('self_order_checkout', $id) CONTENT $data`, {
     id: checkoutId,
     data: {
       status: 'pending',
       token: String(token),
+      idempotency_key: idempotencyKey || null,
       table: table.id,
       floor: table.floorId,
       order_id: orderId,
@@ -505,6 +544,7 @@ async function startCheckout(db, token, body) {
       items,
       kitchens,
       quote: publicQuote(priced, settings.currency),
+      payment,
       created_at: createdAt,
     },
   });
@@ -513,15 +553,7 @@ async function startCheckout(db, token, body) {
     checkoutId,
     gateway: method.gateway,
     quote: publicQuote(priced, settings.currency),
-    payment: intent
-      ? {
-          intentId: intent.intentId,
-          clientToken: intent.clientToken ?? null,
-          publishableKey: intent.gatewayPayload?.publishableKey ?? null,
-          clientId: intent.gatewayPayload?.clientId ?? null,
-          mode: intent.gatewayPayload?.mode ?? null,
-        }
-      : null,
+    payment,
   };
 }
 
