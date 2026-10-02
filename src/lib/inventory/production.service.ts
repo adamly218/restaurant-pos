@@ -627,7 +627,7 @@ export const listProductionBatches = async (
   }
   if (filters.dateTo) {
     const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo.trim());
-    const batchRangeEnd = toReportBoundaryUtcIso(filters.dateTo, {endOfBareDate: true});
+    const batchRangeEnd = toReportBoundaryUtcIso(filters.dateTo, {endOfRange: true});
     if (batchRangeEnd) {
       where.push(isBareDate ? "created_at < <datetime>$dateTo" : "created_at <= <datetime>$dateTo");
       params.dateTo = batchRangeEnd;
@@ -760,7 +760,7 @@ export const fetchProductionLinesForReport = async (
   }
   if (filters.dateTo) {
     const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(filters.dateTo.trim());
-    const lineRangeEnd = toReportBoundaryUtcIso(filters.dateTo, {endOfBareDate: true});
+    const lineRangeEnd = toReportBoundaryUtcIso(filters.dateTo, {endOfRange: true});
     if (lineRangeEnd) {
       where.push(isBareDate ? "created_at < <datetime>$dateTo" : "created_at <= <datetime>$dateTo");
       params.dateTo = lineRangeEnd;

@@ -93,7 +93,7 @@ export const getActivityLog = async (
 
 export const getCashClosing = async (db: DbClient, options: {date?: string}) => {
   const rangeStart = toReportBoundaryUtcIso(options.date);
-  const rangeEnd = toReportBoundaryUtcIso(options.date, {endOfBareDate: true});
+  const rangeEnd = toReportBoundaryUtcIso(options.date, {endOfRange: true});
 
   const query = rangeStart && rangeEnd
     ? `

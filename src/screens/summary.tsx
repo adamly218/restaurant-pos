@@ -88,7 +88,7 @@ export const Summary = () => {
 
     if (date) {
       const dayStart = toReportBoundaryUtcIso(date.toString());
-      const dayEnd = toReportBoundaryUtcIso(date.toString(), {endOfBareDate: true});
+      const dayEnd = toReportBoundaryUtcIso(date.toString(), {endOfRange: true});
       if (dayStart && dayEnd) {
         f.push(`(created_at >= <datetime>"${dayStart}" AND created_at < <datetime>"${dayEnd}")`);
       }
@@ -199,7 +199,7 @@ export const Summary = () => {
 
       const reportDate = date.toString();
       const dayStart = toReportBoundaryUtcIso(reportDate);
-      const dayEnd = toReportBoundaryUtcIso(reportDate, {endOfBareDate: true});
+      const dayEnd = toReportBoundaryUtcIso(reportDate, {endOfRange: true});
       const [entryRes] = await db.query(
         `SELECT *
          FROM ${Tables.time_entries}

@@ -130,8 +130,11 @@ export const getLaborDashboardSnapshot = async (db: DbClient): Promise<LaborDash
 
 export const getLaborDashboardTrend = async (db: DbClient) => {
   const now = DateTime.now().setZone(getAppTimezone());
-  const startDate = formatDateTimeForQuery(now.minus({days: 13}).startOf('day').toUTC());
-  const endDate = formatDateTimeForQuery(now.endOf('day').toUTC());
+  // Same convention as getLaborDashboardSnapshot: pass local wall-clock
+  // boundaries; buildCreatedAtDateConditions converts them to UTC. Calling
+  // .toUTC() here would double-convert and shift the window by the zone offset.
+  const startDate = formatDateTimeForQuery(now.minus({days: 13}).startOf('day'));
+  const endDate = formatDateTimeForQuery(now.endOf('day'));
   const employees = await fetchEmployees(db, {activeOnly: true});
   const timeEntries = await fetchTimeEntries(db, {startDate, endDate, includeOpen: true});
   const payProfiles = await fetchPayProfiles(db, {startDate, endDate});

@@ -179,7 +179,7 @@ export const fetchPayProfiles = async (
 
   if (endDate) {
     const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(endDate.trim());
-    const profileEnd = toReportBoundaryUtcIso(endDate, {endOfBareDate: true});
+    const profileEnd = toReportBoundaryUtcIso(endDate, {endOfRange: true});
     if (profileEnd) {
       conditions.push(isBareDate ? `effective_from < <datetime>$endDate` : `effective_from <= <datetime>$endDate`);
       params.endDate = profileEnd;
@@ -265,7 +265,7 @@ export const fetchPayrollSnapshots = async (
 
   if (endDate) {
     const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(endDate.trim());
-    const periodEnd = toReportBoundaryUtcIso(endDate, {endOfBareDate: true});
+    const periodEnd = toReportBoundaryUtcIso(endDate, {endOfRange: true});
     if (periodEnd) {
       conditions.push(isBareDate
         ? 'payroll_run.payroll_period.end_date < <datetime>$periodEnd'

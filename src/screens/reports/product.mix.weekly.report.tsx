@@ -65,7 +65,7 @@ const parseWeekParams = (weekParam?: string) => {
     weekEnd,
     weekStartISO: weekStart.toISODate() || '',
     weekEndISO: weekEnd.toISODate() || '',
-    // Full day bounds for time::format string compare (date-only end excludes the last day)
+    // Full day bounds so a date-only end still includes the last day
     queryStart: weekStart.startOf('day').toFormat(dateTimeFormat),
     queryEnd: weekEnd.endOf('day').toFormat(dateTimeFormat),
   };

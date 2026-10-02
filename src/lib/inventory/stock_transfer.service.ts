@@ -402,7 +402,7 @@ export const fetchStoreTransferLinesForReport = async (
   }
   if (dateTo) {
     const isBareDate = /^\d{4}-\d{2}-\d{2}$/.test(dateTo.trim());
-    const rangeEnd = toReportBoundaryUtcIso(dateTo, {endOfBareDate: true});
+    const rangeEnd = toReportBoundaryUtcIso(dateTo, {endOfRange: true});
     if (rangeEnd) {
       where.push(isBareDate ? "created_at < <datetime>$dateTo" : "created_at <= <datetime>$dateTo");
       params.dateTo = rangeEnd;

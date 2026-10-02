@@ -42,27 +42,47 @@ const parseReportBoundary = (value: string): DateTime => {
     return asDateOnly.startOf("day");
   }
 
-  // Last resort: an explicit-offset ISO string (already unambiguous).
-  return DateTime.fromISO(trimmed, {setZone: true});
+  // Last resort: an ISO string. Offset-bearing values name an instant; an
+  // offset-less value is interpreted as wall-clock time in the app timezone
+  // (never the browser's), matching the rest of the report filters.
+  return DateTime.fromISO(trimmed, {zone: timezone});
 };
 
 /**
  * Converts one report boundary string to a UTC ISO instant suitable for a
- * `<datetime>$param` cast, or undefined if empty/unparseable. A bare date
- * used as an end boundary is pushed to the exclusive start of the next day
- * (`endOfBareDate`) so the whole local calendar day is covered.
+ * `<datetime>$param` cast, or undefined if empty/unparseable.
+ *
+ * `endOfRange` applies the inclusive-end conventions: a bare date is pushed to
+ * the exclusive start of the next local day so the whole calendar day is
+ * covered, and a minute-precision datetime is extended to the end of that
+ * minute. The filter UI formats with VITE_DATE_TIME_FORMAT (no seconds), so an
+ * end like `2026-10-02 23:59` would otherwise parse to 23:59:00.000 and drop
+ * every record in the final 59.999 seconds of the range.
  */
 export const toReportBoundaryUtcIso = (
   value: string | undefined,
-  {endOfBareDate = false}: {endOfBareDate?: boolean} = {},
+  {endOfRange = false}: {endOfRange?: boolean} = {},
 ): string | undefined => {
   if (!value) return undefined;
 
   const parsed = parseReportBoundary(value);
-  if (!parsed.isValid) return undefined;
+  if (!parsed.isValid) {
+    // Don't silently widen the report when a filter value is malformed.
+    console.warn(`[reports] Ignoring unparseable date boundary: "${value}"`);
+    return undefined;
+  }
 
   const isBareDate = BARE_DATE_RE.test(value.trim());
-  const resolved = endOfBareDate && isBareDate ? parsed.plus({days: 1}) : parsed;
+  let resolved = parsed;
+
+  if (endOfRange) {
+    if (isBareDate) {
+      resolved = parsed.plus({days: 1});
+    } else if (parsed.second === 0 && parsed.millisecond === 0) {
+      resolved = parsed.endOf("minute");
+    }
+  }
+
   return resolved.toUTC().toISO() ?? undefined;
 };
 
@@ -88,10 +108,10 @@ export const buildCreatedAtDateConditions = (
   if (endDate) {
     // A bare date means "through the end of that calendar day" — use an
     // exclusive next-day boundary so the whole day is covered regardless
-    // of the stored field's precision. A full datetime already names a
-    // specific instant (e.g. endOf('day')), so compare inclusively.
+    // of the stored field's precision. A full datetime is compared as the
+    // inclusive end of its minute (see toReportBoundaryUtcIso).
     const isBareDate = BARE_DATE_RE.test(endDate.trim());
-    const end = toReportBoundaryUtcIso(endDate, {endOfBareDate: true});
+    const end = toReportBoundaryUtcIso(endDate, {endOfRange: true});
     if (end) {
       conditions.push(isBareDate ? `${field} < <datetime>$endDate` : `${field} <= <datetime>$endDate`);
       params.endDate = end;
