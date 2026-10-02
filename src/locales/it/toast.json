@@ -158,5 +158,25 @@
     "overrideRequired": "Superare limite di stampa",
     "recordFailed": "Impossibile registrare la stampa"
   },
-  "documentDeleted": "Documento eliminato"
+  "documentDeleted": "Documento eliminato",
+  "notifications": {
+    "someone": "Qualcuno",
+    "clockInTitle": "Entrata",
+    "clockInWithTime": "{{name}} ha timbrato l'entrata alle {{time}}",
+    "clockIn": "{{name}} ha timbrato l'entrata",
+    "clockOutTitle": "Uscita",
+    "clockOutWithTime": "{{name}} ha timbrato l'uscita alle {{time}}",
+    "voidTitle": "Articolo annullato",
+    "voidWithReason": "{{name}} ha annullato un articolo — {{reason}}",
+    "void": "{{name}} ha annullato un articolo",
+    "refundTitle": "Ordine rimborsato",
+    "refundWithReason": "{{name}} ha elaborato un rimborso — {{reason}}",
+    "refund": "{{name}} ha elaborato un rimborso",
+    "discountTitle": "Sconto elevato applicato",
+    "discountApplied": "{{name}} ha applicato {{detail}}",
+    "newEmployeeTitle": "Nuovo dipendente aggiunto",
+    "newEmployeeFallback": "Nuovo dipendente",
+    "securityAlertTitle": "Avviso di sicurezza",
+    "dismiss": "Chiudi"
+  }
 }

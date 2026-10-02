@@ -158,5 +158,25 @@
     "overrideRequired": "Override print limit",
     "recordFailed": "Failed to record bill print"
   },
-  "documentDeleted": "Document deleted"
+  "documentDeleted": "Document deleted",
+  "notifications": {
+    "someone": "Someone",
+    "clockInTitle": "Clock in",
+    "clockInWithTime": "{{name}} clocked in at {{time}}",
+    "clockIn": "{{name}} clocked in",
+    "clockOutTitle": "Clock out",
+    "clockOutWithTime": "{{name}} clocked out at {{time}}",
+    "voidTitle": "Order voided",
+    "voidWithReason": "{{name}} voided an item — {{reason}}",
+    "void": "{{name}} voided an item",
+    "refundTitle": "Order refunded",
+    "refundWithReason": "{{name}} processed a refund — {{reason}}",
+    "refund": "{{name}} processed a refund",
+    "discountTitle": "Large discount applied",
+    "discountApplied": "{{name}} applied {{detail}}",
+    "newEmployeeTitle": "New employee added",
+    "newEmployeeFallback": "New employee",
+    "securityAlertTitle": "Security alert",
+    "dismiss": "Dismiss"
+  }
 }

@@ -158,5 +158,25 @@
     "overrideRequired": "Yazdırma limitini geçersiz kıl",
     "recordFailed": "Fatura yazdırması kaydedilemedi"
   },
-  "documentDeleted": "Belge silindi"
+  "documentDeleted": "Belge silindi",
+  "notifications": {
+    "someone": "Birisi",
+    "clockInTitle": "Giriş",
+    "clockInWithTime": "{{name}} saat {{time}}'de giriş yaptı",
+    "clockIn": "{{name}} giriş yaptı",
+    "clockOutTitle": "Çıkış",
+    "clockOutWithTime": "{{name}} saat {{time}}'de çıkış yaptı",
+    "voidTitle": "Ürün iptal edildi",
+    "voidWithReason": "{{name}} bir ürünü iptal etti — {{reason}}",
+    "void": "{{name}} bir ürünü iptal etti",
+    "refundTitle": "Sipariş iade edildi",
+    "refundWithReason": "{{name}} bir iade işledi — {{reason}}",
+    "refund": "{{name}} bir iade işledi",
+    "discountTitle": "Büyük indirim uygulandı",
+    "discountApplied": "{{name}} {{detail}} uyguladı",
+    "newEmployeeTitle": "Yeni çalışan eklendi",
+    "newEmployeeFallback": "Yeni çalışan",
+    "securityAlertTitle": "Güvenlik uyarısı",
+    "dismiss": "Kapat"
+  }
 }

@@ -11,6 +11,7 @@ import {
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import {useMasterNotifications, type MasterNotification, type MasterNotificationType} from "@/hooks/useMasterNotifications.ts";
+import i18n from "@/lib/i18n.ts";
 
 const AUTO_DISMISS_MS = 6000;
 
@@ -71,7 +72,7 @@ function NotificationItem({
       </div>
       <button
         type="button"
-        aria-label="Dismiss"
+        aria-label={i18n.t('toast:notifications.dismiss', {defaultValue: 'Dismiss'})}
         onClick={(event) => {
           event.stopPropagation();
           onDismiss();

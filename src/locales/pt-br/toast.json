@@ -158,5 +158,25 @@
     "overrideRequired": "Substituir limite de impressão",
     "recordFailed": "Falha ao registrar impressão da conta"
   },
-  "documentDeleted": "Documento excluído"
+  "documentDeleted": "Documento excluído",
+  "notifications": {
+    "someone": "Alguém",
+    "clockInTitle": "Entrada",
+    "clockInWithTime": "{{name}} registrou entrada às {{time}}",
+    "clockIn": "{{name}} registrou entrada",
+    "clockOutTitle": "Saída",
+    "clockOutWithTime": "{{name}} registrou saída às {{time}}",
+    "voidTitle": "Item cancelado",
+    "voidWithReason": "{{name}} cancelou um item — {{reason}}",
+    "void": "{{name}} cancelou um item",
+    "refundTitle": "Pedido reembolsado",
+    "refundWithReason": "{{name}} processou um reembolso — {{reason}}",
+    "refund": "{{name}} processou um reembolso",
+    "discountTitle": "Desconto grande aplicado",
+    "discountApplied": "{{name}} aplicou {{detail}}",
+    "newEmployeeTitle": "Novo funcionário adicionado",
+    "newEmployeeFallback": "Novo funcionário",
+    "securityAlertTitle": "Alerta de segurança",
+    "dismiss": "Fechar"
+  }
 }

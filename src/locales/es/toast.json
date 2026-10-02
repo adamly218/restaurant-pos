@@ -158,5 +158,25 @@
     "overrideRequired": "Anular límite de impresión",
     "recordFailed": "No se pudo registrar la impresión de la factura"
   },
-  "documentDeleted": "Documento eliminado"
+  "documentDeleted": "Documento eliminado",
+  "notifications": {
+    "someone": "Alguien",
+    "clockInTitle": "Entrada",
+    "clockInWithTime": "{{name}} fichó de entrada a las {{time}}",
+    "clockIn": "{{name}} fichó de entrada",
+    "clockOutTitle": "Salida",
+    "clockOutWithTime": "{{name}} fichó de salida a las {{time}}",
+    "voidTitle": "Artículo anulado",
+    "voidWithReason": "{{name}} anuló un artículo — {{reason}}",
+    "void": "{{name}} anuló un artículo",
+    "refundTitle": "Pedido reembolsado",
+    "refundWithReason": "{{name}} procesó un reembolso — {{reason}}",
+    "refund": "{{name}} procesó un reembolso",
+    "discountTitle": "Descuento grande aplicado",
+    "discountApplied": "{{name}} aplicó {{detail}}",
+    "newEmployeeTitle": "Nuevo empleado añadido",
+    "newEmployeeFallback": "Nuevo empleado",
+    "securityAlertTitle": "Alerta de seguridad",
+    "dismiss": "Descartar"
+  }
 }

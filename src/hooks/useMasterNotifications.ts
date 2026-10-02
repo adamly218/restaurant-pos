@@ -26,6 +26,7 @@ import { toRecordId } from "@/lib/utils.ts";
 import { PROTECTED_LAST_ADMIN_ROLE_NAME } from "@/lib/access.rules.ts";
 import { fetchSecurityAlerts, type SecurityAlert } from "@/lib/alerts.service.ts";
 import { toLuxonDateTime } from "@/lib/datetime.ts";
+import i18n from "@/lib/i18n.ts";
 
 // A discount at/above either bar counts as "large". Percentage is
 // currency-agnostic (works the same in any store); the absolute amount is a
@@ -67,6 +68,10 @@ const refKey = (value: unknown): string => {
   }
   return String(value);
 };
+
+/** Translate a Master-notification string (English value as the fallback). */
+const nt = (key: string, options?: Record<string, unknown>): string =>
+  i18n.t(`toast:notifications.${key}`, {defaultValue: key, ...(options ?? {})});
 
 export function useMasterNotifications() {
   const db = useDB();
@@ -142,26 +147,26 @@ export function useMasterNotifications() {
       async (action, value) => {
         if (action === "CREATE") {
           if (isSelf(value.user)) return;
-          const name = (await resolveName(value.employee)) ?? "Someone";
+          const name = (await resolveName(value.employee)) ?? nt("someone");
           const at = value.clock_in ? toLuxonDateTime(value.clock_in as any).toFormat("HH:mm") : "";
           push({
             type: "clock_in",
             severity: "info",
-            title: "Clock in",
-            message: at ? `${name} clocked in at ${at}` : `${name} clocked in`,
+            title: nt("clockInTitle"),
+            message: at ? nt("clockInWithTime", {name, time: at}) : nt("clockIn", {name}),
           });
         } else if (action === "UPDATE" && value.clock_out) {
           const entryId = refKey(value.id);
           if (notifiedClockOutRef.current.has(entryId)) return;
           notifiedClockOutRef.current.add(entryId);
           if (isSelf(value.user)) return;
-          const name = (await resolveName(value.employee)) ?? "Someone";
+          const name = (await resolveName(value.employee)) ?? nt("someone");
           const at = toLuxonDateTime(value.clock_out as any).toFormat("HH:mm");
           push({
             type: "clock_out",
             severity: "info",
-            title: "Clock out",
-            message: `${name} clocked out at ${at}`,
+            title: nt("clockOutTitle"),
+            message: nt("clockOutWithTime", {name, time: at}),
           });
         }
       }
@@ -172,12 +177,12 @@ export function useMasterNotifications() {
       async (action, value) => {
         if (action !== "CREATE") return;
         if (isSelf(value.deleted_by)) return;
-        const name = (await resolveName(value.deleted_by)) ?? "Someone";
+        const name = (await resolveName(value.deleted_by)) ?? nt("someone");
         push({
           type: "void",
           severity: "warning",
-          title: "Order voided",
-          message: value.reason ? `${name} voided an item — ${value.reason}` : `${name} voided an item`,
+          title: nt("voidTitle"),
+          message: value.reason ? nt("voidWithReason", {name, reason: value.reason}) : nt("void", {name}),
         });
       }
     );
@@ -188,12 +193,12 @@ export function useMasterNotifications() {
         if (action !== "CREATE") return;
         const actor = value.manager ?? value.logged_in_user;
         if (isSelf(actor)) return;
-        const name = (await resolveName(actor)) ?? "Someone";
+        const name = (await resolveName(actor)) ?? nt("someone");
         push({
           type: "refund",
           severity: "warning",
-          title: "Order refunded",
-          message: value.reason ? `${name} processed a refund — ${value.reason}` : `${name} processed a refund`,
+          title: nt("refundTitle"),
+          message: value.reason ? nt("refundWithReason", {name, reason: value.reason}) : nt("refund", {name}),
         });
       }
     );
@@ -207,13 +212,13 @@ export function useMasterNotifications() {
           (value.applied_amount != null && value.applied_amount >= LARGE_DISCOUNT_AMOUNT_THRESHOLD);
         if (!isLarge) return;
         if (isSelf(value.applied_by)) return;
-        const name = (await resolveName(value.applied_by)) ?? "Someone";
+        const name = (await resolveName(value.applied_by)) ?? nt("someone");
         const detail = value.applied_rate != null ? `${value.applied_rate}%` : String(value.applied_amount ?? "");
         push({
           type: "discount",
           severity: "warning",
-          title: "Large discount applied",
-          message: `${name} applied ${detail}${value.name ? ` (${value.name})` : ""}`,
+          title: nt("discountTitle"),
+          message: `${nt("discountApplied", {name, detail})}${value.name ? ` (${value.name})` : ""}`,
         });
       }
     );
@@ -222,11 +227,11 @@ export function useMasterNotifications() {
       Tables.employees,
       (action, value) => {
         if (action !== "CREATE") return;
-        const name = `${value.first_name ?? ""} ${value.last_name ?? ""}`.trim() || "New employee";
+        const name = `${value.first_name ?? ""} ${value.last_name ?? ""}`.trim() || nt("newEmployeeFallback");
         push({
           type: "new_employee",
           severity: "info",
-          title: "New employee added",
+          title: nt("newEmployeeTitle"),
           message: name,
         });
       }
@@ -271,7 +276,7 @@ export function useMasterNotifications() {
         push({
           type: "security_alert",
           severity: alert.severity === "critical" ? "critical" : alert.severity === "warning" ? "warning" : "info",
-          title: "Security alert",
+          title: nt("securityAlertTitle"),
           message: `${alert.rule_name}${alert.actor_login ? ` — ${alert.actor_login}` : ""}`,
         });
       }
