@@ -11,6 +11,17 @@ const isDuplicate = (
   return applied.some(a => a.rule.id === candidate.rule.id)
 }
 
+/**
+ * "Highest wins" means the rule with the largest effect. For deductions
+ * (negative totals) that is the largest magnitude, not the least-negative:
+ * a group of penalties/advances should apply the strongest one. Sorting on
+ * the raw total would otherwise pick the smallest deduction.
+ */
+const pickStrongest = (group: LaborRuleCandidate[]): LaborRuleCandidate =>
+  [...group].sort(
+    (a, b) => Math.abs(b.totalAmount) - Math.abs(a.totalAmount)
+  )[0]
+
 const resolveGroup = (
   group: LaborRuleCandidate[],
   stackingMode: string
@@ -18,7 +29,7 @@ const resolveGroup = (
   if (group.length === 0) return []
 
   if (stackingMode === 'prevent' || stackingMode === 'highest_wins') {
-    return [group.sort((a, b) => b.totalAmount - a.totalAmount)[0]]
+    return [pickStrongest(group)]
   }
 
   if (stackingMode === 'priority') {
@@ -88,7 +99,7 @@ export const resolveRuleStacking = (
 
   const anyPrevent = applied.some(a => a.rule.stacking_mode === 'prevent')
   if (anyPrevent && applied.length > 1) {
-    const best = [...applied].sort((a, b) => b.totalAmount - a.totalAmount)[0]
+    const best = pickStrongest(applied)
     return {
       applied: [best],
       rejected: [...applied.filter(a => a !== best), ...rejected],
