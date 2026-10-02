@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "react-qr-code";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowsRotate, faCopy, faPrint, faUpRightFromSquare } from "@fortawesome/free-solid-svg-icons";
@@ -24,8 +25,6 @@ type Option = { label: string; value: string };
 const ONLINE_GATEWAYS = ["stripe", "paypal"];
 
 const isLocalHost = (url: string) => /\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
-
-const tableTitle = (table: SelfOrderTable) => `Table ${table.number || table.name}`;
 
 /** Where phones should open the menu: this page's origin, or — when opened as
  *  localhost — the LAN host the gateway is configured on, with this port. */
@@ -55,6 +54,9 @@ export const AdminSelfOrder = () => {
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const qrRefs = useRef(new Map<string, HTMLDivElement>());
+  const { t } = useTranslation("admin");
+  const tableName = (table: SelfOrderTable) =>
+    t("qrOrdering.tableName", { defaultValue: "Table {{name}}", name: table.number || table.name });
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -79,21 +81,25 @@ export const AdminSelfOrder = () => {
   const floors = useMemo(() => {
     const groups = new Map<string, SelfOrderTable[]>();
     for (const table of config?.tables ?? []) {
-      const key = table.floorName || "Other";
+      const key = table.floorName || t("qrOrdering.otherFloor", { defaultValue: "Other" });
       groups.set(key, [...(groups.get(key) ?? []), table]);
     }
     return [...groups.entries()];
-  }, [config?.tables]);
+  }, [config?.tables, t]);
 
   if (loadError) {
     return (
       <div className="p-5">
-        <p className="text-danger">Could not load QR ordering: {loadError}</p>
-        <Button className="mt-3" variant="primary" onClick={() => void load()}>Try again</Button>
+        <p className="text-danger">
+          {t("qrOrdering.loadError", { defaultValue: "Could not load QR ordering: {{error}}", error: loadError })}
+        </p>
+        <Button className="mt-3" variant="primary" onClick={() => void load()}>
+          {t("qrOrdering.tryAgain", { defaultValue: "Try again" })}
+        </Button>
       </div>
     );
   }
-  if (!config || !draft) return <div className="p-5">Loading…</div>;
+  if (!config || !draft) return <div className="p-5">{t("qrOrdering.loading", { defaultValue: "Loading…" })}</div>;
 
   const set = <K extends keyof SelfOrderSettings>(key: K, value: SelfOrderSettings[K]) =>
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
@@ -108,7 +114,7 @@ export const AdminSelfOrder = () => {
     try {
       const { settings } = await selfOrderAdmin.saveSettings(draft);
       setConfig({ ...config, settings });
-      toast.success("QR ordering settings saved");
+      toast.success(t("qrOrdering.saved", { defaultValue: "QR ordering settings saved" }));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
@@ -120,7 +126,13 @@ export const AdminSelfOrder = () => {
     try {
       const { table: updated } = await selfOrderAdmin.updateTable(table.id, body);
       setConfig((prev) => prev && { ...prev, tables: prev.tables.map((t) => (t.id === updated.id ? updated : t)) });
-      toast.success(body.regenerate ? "New QR code created — print it again" : updated.enabled ? "QR code turned on" : "QR code turned off");
+      toast.success(
+        body.regenerate
+          ? t("qrOrdering.regenerated", { defaultValue: "New QR code created — print it again" })
+          : updated.enabled
+            ? t("qrOrdering.turnedOn", { defaultValue: "QR code turned on" })
+            : t("qrOrdering.turnedOff", { defaultValue: "QR code turned off" }),
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -131,20 +143,20 @@ export const AdminSelfOrder = () => {
       .map((table) => {
         const svg = qrRefs.current.get(table.id)?.querySelector("svg")?.outerHTML ?? "";
         return `<div class="card">
-          <div class="name">${escapeHtml(draft.restaurantName || "Scan to order")}</div>
+          <div class="name">${escapeHtml(draft.restaurantName || t("qrOrdering.scanToOrder", { defaultValue: "Scan to order" }))}</div>
           <div class="qr">${svg}</div>
-          <div class="table">${escapeHtml(tableTitle(table))}</div>
+          <div class="table">${escapeHtml(tableName(table))}</div>
           <div class="floor">${escapeHtml(table.floorName)}</div>
-          <div class="hint">Scan with your phone camera to see the menu, order and pay.</div>
+          <div class="hint">${escapeHtml(t("qrOrdering.printHint", { defaultValue: "Scan with your phone camera to see the menu, order and pay." }))}</div>
         </div>`;
       })
       .join("");
     const win = window.open("", "_blank", "width=900,height=1000");
     if (!win) {
-      toast.error("Allow pop-ups to print the QR codes");
+      toast.error(t("qrOrdering.popupBlocked", { defaultValue: "Allow pop-ups to print the QR codes" }));
       return;
     }
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Table QR codes</title>
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(t("qrOrdering.printTitle", { defaultValue: "Table QR codes" }))}</title>
       <style>
         @page { size: A4; margin: 12mm; }
         body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin: 0; color: #111; }
@@ -168,26 +180,26 @@ export const AdminSelfOrder = () => {
       <section className="flex flex-col gap-4 rounded-2xl border border-border p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-bold">QR table ordering</h2>
+            <h2 className="text-xl font-bold">{t("qrOrdering.title", { defaultValue: "QR table ordering" })}</h2>
             <p className="text-sm text-muted">
-              Customers scan the code on their table, order from the menu and pay online. Paid orders go straight to the kitchen screen.
+              {t("qrOrdering.description", { defaultValue: "Customers scan the code on their table, order from the menu and pay online. Paid orders go straight to the kitchen screen." })}
             </p>
           </div>
           <Switch checked={draft.enabled} onChange={(e) => set("enabled", e.target.checked)}>
-            {draft.enabled ? "On" : "Off"}
+            {draft.enabled ? t("qrOrdering.on", { defaultValue: "On" }) : t("qrOrdering.off", { defaultValue: "Off" })}
           </Switch>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div>
-            <Input label="Restaurant name (shown on the menu)" value={draft.restaurantName} onChange={(e) => set("restaurantName", e.target.value)} />
+            <Input label={t("qrOrdering.restaurantName", { defaultValue: "Restaurant name (shown on the menu)" })} value={draft.restaurantName} onChange={(e) => set("restaurantName", e.target.value)} />
           </div>
           <div>
-            <Input label="Welcome message" value={draft.welcomeText} placeholder="Order and pay right here — we’ll bring it to your table." onChange={(e) => set("welcomeText", e.target.value)} />
+            <Input label={t("qrOrdering.welcome", { defaultValue: "Welcome message" })} value={draft.welcomeText} placeholder={t("qrOrdering.welcomePlaceholder", { defaultValue: "Order and pay right here — we’ll bring it to your table." })} onChange={(e) => set("welcomeText", e.target.value)} />
           </div>
 
           <div>
-            <label className="mb-1 block">Order type for QR orders</label>
+            <label className="mb-1 block">{t("qrOrdering.orderType", { defaultValue: "Order type for QR orders" })}</label>
             <ReactSelect
               value={config.orderTypes.map(toOption).find((o) => o.value === draft.orderTypeId) ?? null}
               options={config.orderTypes.map(toOption)}
@@ -195,33 +207,35 @@ export const AdminSelfOrder = () => {
             />
           </div>
           <div>
-            <label className="mb-1 block">Tax added to items without their own tax (optional)</label>
+            <label className="mb-1 block">{t("qrOrdering.orderTax", { defaultValue: "Tax added to items without their own tax (optional)" })}</label>
             <ReactSelect
               isClearable
-              value={config.taxes.map((t) => ({ label: `${t.name} ${t.rate}%`, value: t.id })).find((o) => o.value === draft.orderTaxId) ?? null}
-              options={config.taxes.map((t) => ({ label: `${t.name} ${t.rate}%`, value: t.id }))}
+              value={config.taxes.map((tax) => ({ label: `${tax.name} ${tax.rate}%`, value: tax.id })).find((o) => o.value === draft.orderTaxId) ?? null}
+              options={config.taxes.map((tax) => ({ label: `${tax.name} ${tax.rate}%`, value: tax.id }))}
               onChange={(opt: Option | null) => set("orderTaxId", opt?.value ?? null)}
             />
           </div>
 
           <div>
-            <label className="mb-1 block">Online payment methods</label>
+            <label className="mb-1 block">{t("qrOrdering.paymentMethods", { defaultValue: "Online payment methods" })}</label>
             <ReactSelect
               isMulti
               value={onlineTypes.map(toOption).filter((o) => draft.paymentTypeIds.includes(o.value))}
               options={onlineTypes.map((pt) => ({ label: `${pt.name} (${pt.gateway}${pt.mode ? `, ${pt.mode}` : ""})`, value: pt.id }))}
               onChange={(opts: readonly Option[] | null) => set("paymentTypeIds", (opts ?? []).map((o) => o.value))}
-              placeholder={onlineTypes.length ? "Choose Stripe / PayPal payment types" : "None set up yet"}
+              placeholder={onlineTypes.length
+                ? t("qrOrdering.choosePaymentTypes", { defaultValue: "Choose Stripe / PayPal payment types" })
+                : t("qrOrdering.noneSetUp", { defaultValue: "None set up yet" })}
             />
             {onlineTypes.length === 0 && (
               <p className="mt-1 text-sm text-muted">
-                To take real payments, add a payment type with the Stripe or PayPal gateway under Manage → Payment types, then pick it here.
+                {t("qrOrdering.paymentHelp", { defaultValue: "To take real payments, add a payment type with the Stripe or PayPal gateway under Manage → Payment types, then pick it here." })}
               </p>
             )}
           </div>
 
           <div>
-            <label className="mb-1 block">Categories hidden from customers</label>
+            <label className="mb-1 block">{t("qrOrdering.hiddenCategories", { defaultValue: "Categories hidden from customers" })}</label>
             <ReactSelect
               isMulti
               value={config.categories.map(toOption).filter((o) => hiddenIds.includes(o.value))}
@@ -232,11 +246,11 @@ export const AdminSelfOrder = () => {
 
           <div className="lg:col-span-2 rounded-xl border border-warning p-4">
             <Switch checked={draft.testMode} onChange={(e) => set("testMode", e.target.checked)}>
-              Test payments — lets you try the whole flow without charging a card. <b>Turn this off before real customers use it.</b>
+              {t("qrOrdering.testMode", { defaultValue: "Test payments — lets you try the whole flow without charging a card. Turn this off before real customers use it." })}
             </Switch>
             {draft.testMode && (
               <div className="mt-3 max-w-md">
-                <label className="mb-1 block text-sm">Record test payments as</label>
+                <label className="mb-1 block text-sm">{t("qrOrdering.testPaymentType", { defaultValue: "Record test payments as" })}</label>
                 <ReactSelect
                   value={config.paymentTypes.map(toOption).find((o) => o.value === draft.testPaymentTypeId) ?? null}
                   options={config.paymentTypes.map(toOption)}
@@ -248,29 +262,29 @@ export const AdminSelfOrder = () => {
 
           <div className="lg:col-span-2">
             <Input
-              label="Address customers’ phones use to reach this POS (goes inside the QR codes)"
+              label={t("qrOrdering.baseUrl", { defaultValue: "Address customers’ phones use to reach this POS (goes inside the QR codes)" })}
               value={draft.baseUrl}
               onChange={(e) => set("baseUrl", e.target.value.trim())}
             />
             {isLocalHost(draft.baseUrl) && (
               <p className="mt-1 text-sm text-danger">
-                “localhost” only works on this computer. Use this computer’s network address (e.g. http://192.168.x.x:5173) or your public domain so phones can open it.
+                {t("qrOrdering.localhostWarning", { defaultValue: "“localhost” only works on this computer. Use this computer’s network address (e.g. http://192.168.x.x:5173) or your public domain so phones can open it." })}
               </p>
             )}
           </div>
         </div>
 
-        {!draft.orderTypeId && <p className="text-sm text-danger">Choose an order type (e.g. Dine In) before turning QR ordering on.</p>}
-        {!paymentReady && <p className="text-sm text-danger">Pick at least one online payment method (or turn on test payments) — customers must pay before the order is sent.</p>}
+        {!draft.orderTypeId && <p className="text-sm text-danger">{t("qrOrdering.orderTypeRequired", { defaultValue: "Choose an order type (e.g. Dine In) before turning QR ordering on." })}</p>}
+        {!paymentReady && <p className="text-sm text-danger">{t("qrOrdering.paymentRequired", { defaultValue: "Pick at least one online payment method (or turn on test payments) — customers must pay before the order is sent." })}</p>}
 
         <div>
-          <Button variant="primary" onClick={save} isLoading={saving} disabled={saving}>Save settings</Button>
+          <Button variant="primary" onClick={save} isLoading={saving} disabled={saving}>{t("qrOrdering.saveSettings", { defaultValue: "Save settings" })}</Button>
         </div>
       </section>
 
       {config.paidAwaitingPos.length > 0 && (
         <section className="rounded-2xl border border-danger p-5">
-          <h3 className="font-bold text-danger">Paid QR orders that did not reach the POS</h3>
+          <h3 className="font-bold text-danger">{t("qrOrdering.paidAwaitingPos", { defaultValue: "Paid QR orders that did not reach the POS" })}</h3>
           <ul className="mt-2 flex flex-col gap-2">
             {config.paidAwaitingPos.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center gap-3 text-sm">
@@ -282,14 +296,14 @@ export const AdminSelfOrder = () => {
                   onClick={async () => {
                     try {
                       const res = await selfOrderAdmin.retryCheckout(row.id);
-                      toast.success(`Sent to POS as order #${res.orderNumber ?? ""}`);
+                      toast.success(t("qrOrdering.sentToPos", { defaultValue: "Sent to POS as order #{{number}}", number: res.orderNumber ?? "" }));
                       void load();
                     } catch (err) {
                       toast.error(err instanceof Error ? err.message : String(err));
                     }
                   }}
                 >
-                  Send to POS again
+                  {t("qrOrdering.sendToPosAgain", { defaultValue: "Send to POS again" })}
                 </Button>
               </li>
             ))}
@@ -299,13 +313,15 @@ export const AdminSelfOrder = () => {
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-bold">Table QR codes ({config.tables.length})</h3>
+          <h3 className="text-lg font-bold">{t("qrOrdering.tableCodes", { defaultValue: "Table QR codes ({{count}})", count: config.tables.length })}</h3>
           <div className="flex flex-wrap gap-2">
             <Button
               variant="secondary"
-              onClick={() => setSelected(selected.size === config.tables.length ? new Set() : new Set(config.tables.map((t) => t.id)))}
+              onClick={() => setSelected(selected.size === config.tables.length ? new Set() : new Set(config.tables.map((tbl) => tbl.id)))}
             >
-              {selected.size === config.tables.length ? "Clear selection" : "Select all"}
+              {selected.size === config.tables.length
+                ? t("qrOrdering.clearSelection", { defaultValue: "Clear selection" })
+                : t("qrOrdering.selectAll", { defaultValue: "Select all" })}
             </Button>
             <Button
               variant="primary"
@@ -313,7 +329,7 @@ export const AdminSelfOrder = () => {
               disabled={selectedTables.length === 0}
               onClick={() => printCodes(selectedTables)}
             >
-              Print {selectedTables.length || ""} QR code{selectedTables.length === 1 ? "" : "s"}
+              {t("qrOrdering.printSelected", { defaultValue: "Print QR codes ({{count}})", count: selectedTables.length })}
             </Button>
           </div>
         </div>
@@ -341,7 +357,7 @@ export const AdminSelfOrder = () => {
                           })
                         }
                       />
-                      <span className="font-bold">{tableTitle(table)}</span>
+                      <span className="font-bold">{tableName(table)}</span>
                       <Switch checked={table.enabled} onChange={(e) => void updateTable(table, { enabled: e.target.checked })} />
                     </div>
                     <div
@@ -354,18 +370,18 @@ export const AdminSelfOrder = () => {
                       <QRCode value={link} size={148} />
                     </div>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="secondary" icon={faCopy} onClick={() => void navigator.clipboard?.writeText(link).then(() => toast.success("Link copied"), () => toast.error("Could not copy the link"))}>
-                        Copy link
+                      <Button size="sm" variant="secondary" icon={faCopy} onClick={() => void navigator.clipboard?.writeText(link).then(() => toast.success(t("qrOrdering.linkCopied", { defaultValue: "Link copied" })), () => toast.error(t("qrOrdering.copyFailed", { defaultValue: "Could not copy the link" })))}>
+                        {t("qrOrdering.copyLink", { defaultValue: "Copy link" })}
                       </Button>
                       <Button size="sm" variant="secondary" icon={faUpRightFromSquare} onClick={() => window.open(link, "_blank", "noopener,noreferrer")}>
-                        Open
+                        {t("qrOrdering.open", { defaultValue: "Open" })}
                       </Button>
                       <DeleteConfirm
-                        title="New QR code"
-                        message={`Make a new QR code for ${tableTitle(table)}? The old printed code will stop working.`}
+                        title={t("qrOrdering.newQr", { defaultValue: "New QR code" })}
+                        message={t("qrOrdering.regenerateConfirm", { defaultValue: "Make a new QR code for {{table}}? The old printed code will stop working.", table: tableName(table) })}
                         onConfirm={() => updateTable(table, { regenerate: true })}
                       >
-                        <Button size="sm" variant="secondary" iconButton aria-label="New QR code">
+                        <Button size="sm" variant="secondary" iconButton aria-label={t("qrOrdering.newQr", { defaultValue: "New QR code" })}>
                           <FontAwesomeIcon icon={faArrowsRotate} />
                         </Button>
                       </DeleteConfirm>
