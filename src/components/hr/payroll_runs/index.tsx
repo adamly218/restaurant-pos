@@ -85,6 +85,7 @@ export const HrPayrollRuns = () => {
   };
 
   const handleDelete = async (run: PayrollRun) => {
+    if (!page.user) return;
     setBusyId(run.id);
     try {
       await deleteRun(db, {runId: run.id, deletedBy: page.user});
@@ -127,7 +128,7 @@ export const HrPayrollRuns = () => {
         const canLock = status === "preview";
         const canApprove = status === "locked";
         const canExport = status === "approved";
-        const canDelete = status === "draft";
+        const canDelete = status === "draft" || status === "preview";
 
         return (
           <div className="flex flex-wrap gap-2">

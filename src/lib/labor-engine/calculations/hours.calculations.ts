@@ -10,6 +10,7 @@ import type {
 } from '@/lib/labor-engine/types.ts'
 import { toLuxonDateTime } from '@/lib/datetime.ts'
 import { safeNumber } from '@/lib/utils.ts'
+import { DateTime } from 'luxon'
 
 export interface HoursPolicyThresholds {
   dailyOtThreshold?: number
@@ -37,27 +38,30 @@ export const unpaidBreakIntervals = (
   return intervals
 }
 
+const unpaidBreakHours = (entry: TimeEntryWithBreaks): number =>
+  unpaidBreakIntervals(entry).reduce(
+    (sum, br) => sum + br.end.diff(br.start, 'hours').hours,
+    0
+  )
+
 export const entryWorkedHours = (entry: TimeEntryWithBreaks): number => {
+  // Unpaid breaks must be excluded no matter which source the gross duration
+  // came from. `duration_seconds` is stored as clock_out - clock_in (gross of
+  // breaks), so it needs the same subtraction as the raw clock path below —
+  // otherwise regular/overtime hours and weekend/holiday premium over-count.
+  const unpaid = unpaidBreakHours(entry)
+
   if (entry.duration_seconds !== undefined && entry.duration_seconds !== null) {
-    return roundHours(safeNumber(entry.duration_seconds) / 3600)
+    return roundHours(Math.max(0, safeNumber(entry.duration_seconds) / 3600 - unpaid))
   }
   if (!entry.clock_out) return 0
 
-  const start = toLuxonDateTime(entry.clock_in)
-  const end = toLuxonDateTime(entry.clock_out)
-  let gross = end.diff(start, 'hours').hours
+  const gross = toLuxonDateTime(entry.clock_out).diff(
+    toLuxonDateTime(entry.clock_in),
+    'hours'
+  ).hours
 
-  const breaks = entry.breaks ?? []
-  for (const br of breaks) {
-    if (!br.end_at) continue
-    const bStart = toLuxonDateTime(br.start_at)
-    const bEnd = toLuxonDateTime(br.end_at)
-    if (br.break_type === 'unpaid') {
-      gross -= bEnd.diff(bStart, 'hours').hours
-    }
-  }
-
-  return roundHours(Math.max(0, gross))
+  return roundHours(Math.max(0, gross - unpaid))
 }
 
 const breakHours = (entry: TimeEntryWithBreaks): { paid: number; unpaid: number } => {
@@ -105,7 +109,12 @@ export const computeHoursFromEntries = (
 
 /** ISO calendar week (Mon-Sun) key — the weekly OT threshold resets here. */
 const weekKeyForDate = (date: string): string => {
-  const dt = toLuxonDateTime(date)
+  // `date` is a business calendar day (yyyy-MM-dd) from `daily`. Parse it as a
+  // plain calendar date, NOT through toLuxonDateTime: that treats an
+  // offset-less string as a UTC instant and re-zones it, which shifts the day
+  // (and therefore the ISO week) backwards in any negative-offset timezone —
+  // resetting the weekly overtime budget on the wrong day.
+  const dt = DateTime.fromISO(date, { zone: 'utc' })
   return `${dt.weekYear}-${dt.weekNumber}`
 }
 

@@ -274,9 +274,22 @@ export const PayProfileForm = ({open, onClose, data}: Props) => {
     codePrefix: string,
     name: string,
   ): Promise<string | null> => {
-    if (mode === "default") return null;
+    // Only a record this form created carries the generated `OT_`/`NIGHT_`
+    // prefix. A profile can also be linked to a seeded/global labor_policy;
+    // updating that in place would silently rewrite it for every other
+    // profile that references it, so only reuse records we own.
+    const isOwned = Boolean(existingPolicy?.code?.startsWith(`${codePrefix}_`));
 
-    if (existingPolicy?.id) {
+    if (mode === "default") {
+      // Unlink. Deactivate an owned override so it doesn't linger as an
+      // active, selectable policy; never touch seeded/global records.
+      if (existingPolicy?.id && isOwned) {
+        await db.merge(existingPolicy.id, {is_active: false});
+      }
+      return null;
+    }
+
+    if (existingPolicy?.id && isOwned) {
       await db.update(existingPolicy.id, {config, is_active: true});
       return String(existingPolicy.id);
     }

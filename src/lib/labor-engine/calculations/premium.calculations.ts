@@ -82,9 +82,21 @@ export const computeNightPremiumHours = (
       const next = cursor.plus({ minutes: 15 })
       const sliceEnd = next > end ? end : next
       const midMinute = cursor.hour * 60 + cursor.minute + 7.5
-      const onUnpaidBreak = breaks.some(br => cursor < br.end && sliceEnd > br.start)
-      if (!onUnpaidBreak && isNightMinute(midMinute, startMin, endMin)) {
-        nightHours += sliceEnd.diff(cursor, 'hours').hours
+
+      if (isNightMinute(midMinute, startMin, endMin)) {
+        // Subtract only the portion of this slice covered by an unpaid break,
+        // rather than dropping the whole slice when any overlap exists — a
+        // break that straddles a slice boundary would otherwise remove up to
+        // a full extra slice of premium hours.
+        const sliceHours = sliceEnd.diff(cursor, 'hours').hours
+        const breakHours = breaks.reduce((sum, br) => {
+          const overlapStart = cursor > br.start ? cursor : br.start
+          const overlapEnd = sliceEnd < br.end ? sliceEnd : br.end
+          return overlapEnd > overlapStart
+            ? sum + overlapEnd.diff(overlapStart, 'hours').hours
+            : sum
+        }, 0)
+        nightHours += Math.max(0, sliceHours - breakHours)
       }
       cursor = sliceEnd
     }

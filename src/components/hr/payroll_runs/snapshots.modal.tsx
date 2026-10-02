@@ -241,8 +241,10 @@ export const PayrollRunSnapshots = ({open, onClose, run, onChanged}: Props) => {
                 const draft = drafts[snapshot.id] ?? toDraft(snapshot);
                 // Snapshot amounts are computed from this employee's pay profile at
                 // calc time — that profile can be in a different currency than the
-                // store's default (VITE_CURRENCY), so format with its own currency.
-                const currency = snapshot.pay_profile_id?.currency;
+                // store's default (VITE_CURRENCY), so format with the currency
+                // frozen on the snapshot (falling back to the live profile for
+                // snapshots created before that field existed).
+                const currency = snapshot.currency ?? snapshot.pay_profile_id?.currency;
                 return (
                   <Fragment key={snapshot.id}>
                     <tr>
