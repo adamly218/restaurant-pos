@@ -4,6 +4,7 @@ import {
   normalizeCustomBase,
   type CustomPaletteBase,
 } from './derive-brand-palette.ts'
+import { resolveBrandPalette } from './brand-palettes.ts'
 
 const BASE: CustomPaletteBase = {
   canvas: '#102030',
@@ -47,5 +48,14 @@ describe('four-color custom palette', () => {
     expect(base.canvas).toMatch(/^#[0-9a-f]{6}$/)
     expect(base.surface).toMatch(/^#[0-9a-f]{6}$/)
     expect(base.foreground).toMatch(/^#[0-9a-f]{6}$/)
+  })
+
+  it('resolveBrandPalette keeps a gray custom primary neutral in dark mode', () => {
+    const palette = resolveBrandPalette('custom', 'dark', '#cccccc')
+    for (const key of ['canvas', 'surface', 'surfaceElevated', 'foreground', 'muted', 'border', 'primary'] as const) {
+      const [r, g, b] = palette[key].split(' ').map(Number)
+      expect(Math.abs(r - g)).toBeLessThanOrEqual(1)
+      expect(Math.abs(g - b)).toBeLessThanOrEqual(1)
+    }
   })
 })

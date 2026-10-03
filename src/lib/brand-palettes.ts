@@ -1,10 +1,7 @@
 import type { AppBrandId, AppBrandPresetId, BrandPalette, ResolvedAppTheme } from '@/lib/theme.ts';
 import {
-  DEFAULT_CUSTOM_PRIMARY,
-  deriveBrandPalette,
   deriveBrandPaletteFromBase,
   normalizeCustomBase,
-  normalizeHex,
   type CustomPaletteBase,
 } from '@/lib/derive-brand-palette.ts';
 
@@ -206,20 +203,18 @@ export function getBrandPalette(brand: AppBrandId, mode: ResolvedAppTheme): Bran
 /** A custom brand can be supplied as a legacy primary string or a 4-color base. */
 export type CustomBrandInput = string | Partial<CustomPaletteBase> | null | undefined;
 
-/** Resolve preset or on-the-fly custom palette from a primary hex or base colors. */
+/**
+ * Resolve preset or custom palette. Custom always goes through the four-color
+ * base model (seeded from a legacy primary when needed) so achromatic inputs
+ * stay neutral instead of picking up a forced-saturation tint.
+ */
 export function resolveBrandPalette(
   brand: AppBrandId,
   mode: ResolvedAppTheme,
   custom?: CustomBrandInput,
 ): BrandPalette {
   if (brand === 'custom') {
-    if (custom && typeof custom === 'object') {
-      return deriveBrandPaletteFromBase(normalizeCustomBase(custom), mode);
-    }
-    return deriveBrandPalette(
-      normalizeHex(typeof custom === 'string' ? custom : null) ?? DEFAULT_CUSTOM_PRIMARY,
-      mode,
-    );
+    return deriveBrandPaletteFromBase(normalizeCustomBase(custom), mode);
   }
   return getBrandPalette(brand, mode);
 }

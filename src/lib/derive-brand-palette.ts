@@ -183,8 +183,7 @@ export interface CustomPaletteBase {
   primary: string;
 }
 
-function channelsToHex(channels: string): string {
-  const [r, g, b] = channels.trim().split(/\s+/).map(Number);
+function rgbToHex({ r, g, b }: Rgb): string {
   return `#${[r, g, b]
     .map((n) => Math.max(0, Math.min(255, Math.round(n || 0))).toString(16).padStart(2, '0'))
     .join('')}`;
@@ -198,25 +197,32 @@ function mixRgb(a: Rgb, b: Rgb, weightA: number): Rgb {
   };
 }
 
+/** Seed the three derived base colors from a primary, staying neutral for grays. */
+function seedBaseFromPrimary(primaryHex: string): CustomPaletteBase {
+  const primary = normalizeHex(primaryHex) ?? DEFAULT_CUSTOM_PRIMARY;
+  const { h, s } = rgbToHsl(hexToRgb(primary));
+  const sat = boostSaturation(s, 0.35);
+  return {
+    canvas: rgbToHex(hslToRgb({ h, s: sat * 0.25, l: 0.86 })),
+    surface: rgbToHex(hslToRgb({ h, s: sat * 0.12, l: 0.97 })),
+    foreground: rgbToHex(hslToRgb({ h, s: sat * 0.35, l: 0.22 })),
+    primary,
+  };
+}
+
 /** Seed a full base from a legacy single primary (derives canvas/surface/text). */
 export function normalizeCustomBase(
   input?: Partial<CustomPaletteBase> | string | null,
 ): CustomPaletteBase {
   if (typeof input === 'string') {
-    const palette = deriveBrandPalette(input, 'light');
-    return {
-      canvas: channelsToHex(palette.canvas),
-      surface: channelsToHex(palette.surface),
-      foreground: channelsToHex(palette.foreground),
-      primary: normalizeHex(input) ?? DEFAULT_CUSTOM_PRIMARY,
-    };
+    return seedBaseFromPrimary(input);
   }
   const primary = normalizeHex(input?.primary) ?? DEFAULT_CUSTOM_PRIMARY;
-  const seed = deriveBrandPalette(primary, 'light');
+  const seed = seedBaseFromPrimary(primary);
   return {
-    canvas: normalizeHex(input?.canvas) ?? channelsToHex(seed.canvas),
-    surface: normalizeHex(input?.surface) ?? channelsToHex(seed.surface),
-    foreground: normalizeHex(input?.foreground) ?? channelsToHex(seed.foreground),
+    canvas: normalizeHex(input?.canvas) ?? seed.canvas,
+    surface: normalizeHex(input?.surface) ?? seed.surface,
+    foreground: normalizeHex(input?.foreground) ?? seed.foreground,
     primary,
   };
 }
