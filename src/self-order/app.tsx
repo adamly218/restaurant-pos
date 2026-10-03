@@ -217,7 +217,7 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
       />
 
       {cartCount > 0 && sheet === 'none' && !activeDish && (
-        <div className="so-safe-bottom fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[color:var(--so-paper)] via-[color:var(--so-paper)]/90 to-transparent px-4 pt-6">
+        <div className="so-safe-bottom fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[color:var(--so-paper)] via-[color:var(--so-paper)] to-transparent px-4 pt-6">
           <button className="so-btn-primary mx-auto max-w-xl !py-3.5 !pl-3.5" onClick={() => setSheet('cart')}>
             <span className="flex items-center gap-3">
               <span className="flex h-9 min-w-9 items-center justify-center rounded-full bg-[color:var(--so-gold)] px-2 text-sm font-bold text-[color:var(--so-gold-soft)]">
@@ -348,7 +348,7 @@ function MenuView({
 
       <nav
         ref={tabsRef}
-        className="so-scroll-x sticky top-0 z-10 flex gap-7 overflow-x-auto border-b border-[color:var(--so-line)] bg-[color:var(--so-paper)]/95 px-6 backdrop-blur"
+        className="so-scroll-x sticky top-0 z-10 flex gap-7 overflow-x-auto border-b border-[color:var(--so-line)] bg-[color:var(--so-paper)] px-6 backdrop-blur"
       >
         {sections.map(({ category }) => (
           <button
@@ -396,7 +396,7 @@ function MenuView({
               const price = fromPrice(dish);
               const optionHint = dish.modifierGroups.map((g) => g.name).join(' · ');
               return (
-                <li key={dish.id} className="border-b border-[color:var(--so-line)]/70 last:border-b-0">
+                <li key={dish.id} className="border-b border-[color:var(--so-line)] last:border-b-0">
                   <button onClick={() => onPick(dish)} className="flex w-full items-center gap-4 py-5 text-left active:opacity-70">
                     <span className="min-w-0 flex-1">
                       <span className="flex items-end">
@@ -574,7 +574,7 @@ function DishSheet({
                   <label
                     key={option.id}
                     className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-3.5 transition-colors ${
-                      index > 0 ? 'border-t border-[color:var(--so-line)]/70' : ''
+                      index > 0 ? 'border-t border-[color:var(--so-line)]' : ''
                     } ${checked ? 'bg-[#f3ead9]' : ''}`}
                   >
                     <span className="flex items-center gap-3.5">
@@ -652,7 +652,7 @@ function CartSheet({
           const dish = dishMap.get(line.dishId)!;
           const options = optionNames(dish, line.modifiers);
           return (
-            <li key={line.key} className="flex items-start justify-between gap-4 border-b border-[color:var(--so-line)]/70 py-5 last:border-b-0">
+            <li key={line.key} className="flex items-start justify-between gap-4 border-b border-[color:var(--so-line)] py-5 last:border-b-0">
               <div className="min-w-0">
                 <p className="so-serif text-[1.05rem] font-semibold leading-snug">{dish.name}</p>
                 {options.length > 0 && <p className="mt-0.5 text-sm text-[color:var(--so-muted)]">{options.join(' · ')}</p>}
