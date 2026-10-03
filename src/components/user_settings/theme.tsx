@@ -63,7 +63,12 @@ function ColorField({
             className="h-12"
             value={draft}
             placeholder="#000000"
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              // Apply as soon as the value is a valid hex (so typed colors show).
+              const hex = normalizeHex(e.target.value);
+              if (hex) onChange(hex);
+            }}
             onBlur={() => commit(draft)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') commit(draft);
