@@ -31,6 +31,16 @@ describe('four-color custom palette', () => {
     expect(Number(dark.foreground.split(' ')[0])).toBeGreaterThan(180)
   })
 
+  it('keeps neutral gray palettes gray in dark mode', () => {
+    const gray: CustomPaletteBase = { canvas: '#333333', surface: '#aaaaaa', foreground: '#eeeeee', primary: '#cccccc' }
+    const dark = deriveBrandPaletteFromBase(gray, 'dark')
+    for (const key of ['canvas', 'surface', 'surfaceElevated', 'foreground', 'muted', 'border', 'primary'] as const) {
+      const [r, g, b] = dark[key].split(' ').map(Number)
+      expect(Math.abs(r - g)).toBeLessThanOrEqual(1)
+      expect(Math.abs(g - b)).toBeLessThanOrEqual(1)
+    }
+  })
+
   it('seeds missing base colors from a legacy single primary', () => {
     const base = normalizeCustomBase('#0046fe')
     expect(base.primary).toBe('#0046fe')

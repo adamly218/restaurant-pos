@@ -54,6 +54,11 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+::selection {
+  background-color: var(--so-ink);
+  color: var(--so-on-ink);
+}
+
 @layer components {
   .so-serif {
     font-family: var(--so-serif);

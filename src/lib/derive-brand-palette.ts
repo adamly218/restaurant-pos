@@ -86,6 +86,15 @@ function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
 
+/**
+ * Lift saturation for colored inputs, but keep achromatic (gray) inputs gray.
+ * Forcing a minimum saturation on a gray keeps hue 0 (red), which tints the
+ * derived dark theme pink — exactly the bug for gray/black/white palettes.
+ */
+function boostSaturation(saturation: number, min: number): number {
+  return saturation < 0.04 ? 0 : clamp01(Math.max(saturation, min));
+}
+
 function relativeLuminance({ r, g, b }: Rgb): number {
   const lin = [r, g, b].map((c) => {
     const s = c / 255;
@@ -250,19 +259,19 @@ export function deriveBrandPaletteFromBase(
   const { h: fh, s: fs } = rgbToHsl(foreground);
   const { h: ph, s: ps, l: pl } = rgbToHsl(primary);
 
-  const darkCanvas = hslToRgb({ h: ch, s: clamp01(Math.max(cs, 0.08)), l: 0.06 });
-  const darkSurface = hslToRgb({ h: sh, s: clamp01(Math.max(ss, 0.1)), l: 0.11 });
-  const darkElevated = hslToRgb({ h: sh, s: clamp01(Math.max(ss, 0.12)), l: 0.18 });
-  const darkForeground = hslToRgb({ h: fh, s: clamp01(Math.max(fs, 0.08)), l: 0.93 });
-  const darkPrimary = hslToRgb({ h: ph, s: clamp01(Math.max(ps, 0.4)), l: clamp01(Math.max(pl, 0.58)) });
+  const darkCanvas = hslToRgb({ h: ch, s: boostSaturation(cs, 0.08), l: 0.06 });
+  const darkSurface = hslToRgb({ h: sh, s: boostSaturation(ss, 0.1), l: 0.11 });
+  const darkElevated = hslToRgb({ h: sh, s: boostSaturation(ss, 0.12), l: 0.18 });
+  const darkForeground = hslToRgb({ h: fh, s: boostSaturation(fs, 0.08), l: 0.93 });
+  const darkPrimary = hslToRgb({ h: ph, s: boostSaturation(ps, 0.4), l: clamp01(Math.max(pl, 0.58)) });
 
   return {
     canvas: rgbToChannels(darkCanvas),
     surface: rgbToChannels(darkSurface),
     surfaceElevated: rgbToChannels(darkElevated),
     foreground: rgbToChannels(darkForeground),
-    muted: rgbToChannels(hslToRgb({ h: fh, s: clamp01(Math.max(fs, 0.12)), l: 0.72 })),
-    border: rgbToChannels(hslToRgb({ h: sh, s: clamp01(Math.max(ss, 0.16)), l: 0.28 })),
+    muted: rgbToChannels(hslToRgb({ h: fh, s: boostSaturation(fs, 0.12), l: 0.72 })),
+    border: rgbToChannels(hslToRgb({ h: sh, s: boostSaturation(ss, 0.16), l: 0.28 })),
     primary: rgbToChannels(darkPrimary),
     primaryFg: contrastingForeground(darkPrimary),
     warning: '251 191 36',
