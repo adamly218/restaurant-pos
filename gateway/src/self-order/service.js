@@ -475,8 +475,8 @@ async function startCheckout(db, token, body) {
   // live checkout already exists for it, return that one.
   if (idempotencyKey) {
     const [existingRows] = await db.query(
-      `SELECT * FROM self_order_checkout WHERE token = $token AND idempotency_key = $key AND status != 'expired' ORDER BY created_at DESC LIMIT 1`,
-      { token: String(token), key: idempotencyKey }
+      `SELECT * FROM self_order_checkout WHERE token = $qrToken AND idempotency_key = $idemKey AND status != 'expired' ORDER BY created_at DESC LIMIT 1`,
+      { qrToken: String(token), idemKey: idempotencyKey }
     );
     const existing = Array.isArray(existingRows) ? existingRows[0] : existingRows;
     if (existing) {
