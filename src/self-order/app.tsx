@@ -11,6 +11,7 @@ import {
   PublicMenu,
   Quote,
 } from './api.ts';
+import { watchSelfOrderTheme } from './theme.ts';
 
 const StripePay = lazy(() => import('./payment.tsx').then((m) => ({ default: m.StripePay })));
 const PaypalPay = lazy(() => import('./payment.tsx').then((m) => ({ default: m.PaypalPay })));
@@ -83,6 +84,12 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
 
   useEffect(load, [load]);
   useEffect(() => storage.set(`so-cart:${token}`, cart), [cart, token]);
+
+  // Apply the theme configured in Manage → QR Ordering (brand + light/dark/system).
+  useEffect(
+    () => watchSelfOrderTheme(menu?.theme?.brand, menu?.theme?.mode),
+    [menu?.theme?.brand, menu?.theme?.mode],
+  );
 
   const finish = (status: CheckoutStatus) => {
     setDone(status);
@@ -180,7 +187,7 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
         <div className="so-safe-bottom fixed inset-x-0 bottom-0 z-20 bg-gradient-to-t from-[color:var(--so-paper)] via-[color:var(--so-paper)]/90 to-transparent px-4 pt-6">
           <button className="so-btn-primary mx-auto max-w-xl !py-3.5 !pl-3.5" onClick={() => setSheet('cart')}>
             <span className="flex items-center gap-3">
-              <span className="flex h-9 min-w-9 items-center justify-center rounded-full bg-[color:var(--so-gold)] px-2 text-sm font-bold text-[color:var(--so-ink)]">
+              <span className="flex h-9 min-w-9 items-center justify-center rounded-full bg-[color:var(--so-gold)] px-2 text-sm font-bold text-[color:var(--so-gold-soft)]">
                 {cartCount}
               </span>
               <span>View your order</span>
@@ -279,16 +286,16 @@ function MenuView({
 
   return (
     <>
-      <header className="so-hero relative overflow-hidden px-6 pb-10 pt-10 text-[color:var(--so-paper)]">
+      <header className="so-hero relative overflow-hidden px-6 pb-10 pt-10 text-[color:var(--so-on-ink)]">
         <div className="flex items-center justify-between">
           <span className="so-eyebrow text-[color:var(--so-gold-soft)]">{menu.table.floor || 'Welcome'}</span>
-          <span className="rounded-full border border-[color:var(--so-gold)]/50 px-3.5 py-1.5 text-xs font-semibold tracking-wide text-[color:var(--so-gold-soft)]">
+          <span className="rounded-full border border-[color:var(--so-on-ink)] px-3.5 py-1.5 text-xs font-semibold tracking-wide text-[color:var(--so-gold-soft)]">
             Table {menu.table.number || menu.table.name}
           </span>
         </div>
         <h1 className="so-serif mt-8 text-[2.3rem] font-bold leading-[1.05] tracking-tight">{menu.restaurant.name || 'Our Menu'}</h1>
         <div className="so-ornament mt-4 max-w-[12rem] text-xs">✦</div>
-        <p className="mt-4 max-w-sm text-[0.95rem] leading-relaxed text-[color:var(--so-paper)]/75">
+        <p className="mt-4 max-w-sm text-[0.95rem] leading-relaxed text-[color:var(--so-on-ink)]">
           {menu.restaurant.welcomeText || 'Choose at your leisure, pay from your seat — we’ll bring everything to your table.'}
         </p>
         <div className="relative mt-7">
@@ -301,7 +308,7 @@ function MenuView({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search dishes"
-            className="w-full rounded-full border border-white/10 bg-white/[0.07] py-3.5 pl-11 pr-4 text-base text-[color:var(--so-paper)] outline-none placeholder:text-white/40 focus:border-[color:var(--so-gold)]/60"
+            className="so-hero-field w-full rounded-full py-3.5 pl-11 pr-4 text-base outline-none"
           />
         </div>
       </header>
@@ -316,7 +323,7 @@ function MenuView({
             data-tab={category.id}
             onClick={() => sectionRefs.current.get(category.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
             className={`relative shrink-0 py-4 text-sm font-semibold tracking-wide transition-colors ${
-              active === category.id ? 'text-[color:var(--so-ink)]' : 'text-[color:var(--so-muted)]'
+              active === category.id ? 'text-[color:var(--so-fg)]' : 'text-[color:var(--so-muted)]'
             }`}
           >
             {category.name}
@@ -375,7 +382,7 @@ function MenuView({
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg transition-colors ${
                         qty > 0
                           ? 'bg-[color:var(--so-ink)] text-sm font-bold text-[color:var(--so-gold-soft)]'
-                          : 'border border-[color:var(--so-gold)]/60 text-[color:var(--so-gold-ink)]'
+                          : 'border border-[color:var(--so-gold)] text-[color:var(--so-gold-ink)]'
                       }`}
                       aria-label={qty > 0 ? `${qty} in your order` : 'Add'}
                     >
@@ -455,7 +462,7 @@ function QtyStepper({ value, onChange, min = 1 }: { value: number; onChange: (v:
         −
       </button>
       <span className="w-6 text-center font-semibold tabular-nums">{value}</span>
-      <button className="h-10 w-10 text-lg text-[color:var(--so-ink)]" onClick={() => onChange(Math.min(50, value + 1))} aria-label="More">
+      <button className="h-10 w-10 text-lg text-[color:var(--so-fg)]" onClick={() => onChange(Math.min(50, value + 1))} aria-label="More">
         +
       </button>
     </div>
@@ -507,7 +514,7 @@ function DishSheet({
             className="so-btn-primary flex-1"
           >
             <span>{missing.length > 0 ? 'Pick your options' : 'Add to order'}</span>
-            {missing.length === 0 && <span className="tabular-nums text-[color:var(--so-gold-soft)]">{formatMoney(unit * quantity, currency)}</span>}
+            {missing.length === 0 && <span className="tabular-nums text-[color:var(--so-gold-ink)]">{formatMoney(unit * quantity, currency)}</span>}
           </button>
         </div>
       }
@@ -900,13 +907,13 @@ function DoneScreen({
   if (!isSettled(status)) {
     return (
       <div className="mx-auto flex min-h-screen max-w-xl flex-col">
-        <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-paper)]">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-gold)]/60 text-2xl font-bold text-[color:var(--so-gold-soft)]">
+        <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-on-ink)]">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-on-ink)] text-2xl font-bold text-[color:var(--so-gold-soft)]">
             !
           </div>
           <p className="so-eyebrow mt-6 text-[color:var(--so-gold-soft)]">{restaurantName || 'Payment'}</p>
           <h1 className="so-serif mt-2 text-[2.1rem] font-bold tracking-tight leading-tight">Payment not completed</h1>
-          <p className="mx-auto mt-3 max-w-xs text-[0.95rem] leading-relaxed text-[color:var(--so-paper)]/75">
+          <p className="mx-auto mt-3 max-w-xs text-[0.95rem] leading-relaxed text-[color:var(--so-on-ink)]">
             {status.message ||
               'Your payment didn’t go through, so no order was sent to the kitchen. Your order is still here — you can try again.'}
           </p>
@@ -923,13 +930,13 @@ function DoneScreen({
 
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col">
-      <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-paper)]">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-gold)]/60 text-2xl text-[color:var(--so-gold-soft)]">
+      <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-on-ink)]">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-on-ink)] text-2xl text-[color:var(--so-gold-soft)]">
           ✓
         </div>
         <p className="so-eyebrow mt-6 text-[color:var(--so-gold-soft)]">{restaurantName || 'Order confirmed'}</p>
         <h1 className="so-serif mt-2 text-[2.1rem] font-bold tracking-tight leading-tight">Thank you</h1>
-        <p className="mx-auto mt-3 max-w-xs text-[0.95rem] leading-relaxed text-[color:var(--so-paper)]/75">
+        <p className="mx-auto mt-3 max-w-xs text-[0.95rem] leading-relaxed text-[color:var(--so-on-ink)]">
           Your order is paid and already with the kitchen. We’ll bring it to your table.
         </p>
       </div>
@@ -986,16 +993,16 @@ function CenteredMessage({
   action?: { label: string; onClick: () => void };
 }) {
   return (
-    <div className="so-hero flex min-h-screen flex-col items-center justify-center px-8 text-center text-[color:var(--so-paper)]">
+    <div className="so-hero flex min-h-screen flex-col items-center justify-center px-8 text-center text-[color:var(--so-on-ink)]">
       {spinner && (
-        <div className="mb-6 h-10 w-10 animate-spin rounded-full border-2 border-[color:var(--so-gold)]/25 border-t-[color:var(--so-gold)]" />
+        <div className="so-spinner mb-6 h-10 w-10 animate-spin rounded-full" />
       )}
       <h1 className="so-serif text-3xl font-semibold">{title}</h1>
-      {body && <p className="mt-3 max-w-xs text-[color:var(--so-paper)]/70">{body}</p>}
+      {body && <p className="mt-3 max-w-xs text-[color:var(--so-on-ink)]">{body}</p>}
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-8 rounded-full border border-[color:var(--so-gold)]/60 px-7 py-3 font-semibold text-[color:var(--so-gold-soft)]"
+          className="mt-8 rounded-full border border-[color:var(--so-on-ink)] px-7 py-3 font-semibold text-[color:var(--so-gold-soft)]"
         >
           {action.label}
         </button>
@@ -1024,8 +1031,8 @@ function Toast() {
   if (!text) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center px-4">
-      <div className="so-sheet flex items-center gap-2.5 rounded-full bg-[color:var(--so-ink)] px-5 py-3 text-sm font-medium text-[color:var(--so-paper)] shadow-xl">
-        <span className="text-[color:var(--so-gold)]">✓</span>
+      <div className="so-sheet flex items-center gap-2.5 rounded-full bg-[color:var(--so-ink)] px-5 py-3 text-sm font-medium text-[color:var(--so-on-ink)] shadow-xl">
+        <span className="text-[color:var(--so-gold-soft)]">✓</span>
         {text}
       </div>
     </div>

@@ -1023,6 +1023,9 @@
     "copyLink": "Copiar link",
     "linkCopied": "Link copiado",
     "copyFailed": "Não foi possível copiar o link",
-    "open": "Abrir"
+    "open": "Abrir",
+    "themeTitle": "Tema da página do cliente",
+    "themeDescription": "Cores da página de pedidos por QR. O modo claro/escuro pode seguir o celular de cada cliente.",
+    "themeMode": "Aparência"
   }
 }

@@ -1023,6 +1023,9 @@
     "copyLink": "Link kopieren",
     "linkCopied": "Link kopiert",
     "copyFailed": "Link konnte nicht kopiert werden",
-    "open": "Öffnen"
+    "open": "Öffnen",
+    "themeTitle": "Design der Kundenseite",
+    "themeDescription": "Farben der QR-Bestellseite. Hell/Dunkel kann dem Handy jedes Gastes folgen.",
+    "themeMode": "Darstellung"
   }
 }

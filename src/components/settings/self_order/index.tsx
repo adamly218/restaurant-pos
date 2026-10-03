@@ -12,6 +12,9 @@ import { ReactSelect } from "@/components/common/input/custom.react.select.tsx";
 import { DeleteConfirm } from "@/components/common/table/delete.confirm.tsx";
 import { getAppTimezone } from "@/lib/datetime.ts";
 import { getGatewayBaseUrl } from "@/lib/session.ts";
+import { BRAND_PRESET_IDS } from "@/lib/theme.ts";
+import { getBrandPalette } from "@/lib/brand-palettes.ts";
+import { cn } from "@/lib/utils.ts";
 import {
   SelfOrderConfig,
   SelfOrderSettings,
@@ -54,7 +57,7 @@ export const AdminSelfOrder = () => {
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const qrRefs = useRef(new Map<string, HTMLDivElement>());
-  const { t } = useTranslation("admin");
+  const { t } = useTranslation(["admin", "settings"]);
   const tableName = (table: SelfOrderTable) =>
     t("qrOrdering.tableName", { defaultValue: "Table {{name}}", name: table.number || table.name });
 
@@ -271,6 +274,57 @@ export const AdminSelfOrder = () => {
                 {t("qrOrdering.localhostWarning", { defaultValue: "“localhost” only works on this computer. Use this computer’s network address (e.g. http://192.168.x.x:5173) or your public domain so phones can open it." })}
               </p>
             )}
+          </div>
+
+          <div className="lg:col-span-2 rounded-xl border border-border p-4">
+            <label className="mb-1 block font-semibold">{t("qrOrdering.themeTitle", { defaultValue: "Customer page theme" })}</label>
+            <p className="mb-3 text-sm text-muted">
+              {t("qrOrdering.themeDescription", { defaultValue: "Colors for the QR ordering page. Light/dark can follow each customer’s phone." })}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {BRAND_PRESET_IDS.map((preset) => {
+                const palette = getBrandPalette(preset, "light");
+                const active = (draft.themeBrand ?? "classic") === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => set("themeBrand", preset)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                      active ? "border-primary bg-primary/10 font-semibold" : "border-border",
+                    )}
+                  >
+                    <span className="flex h-4 w-4 overflow-hidden rounded-full border border-border" aria-hidden>
+                      <span className="h-full w-1/2" style={{ background: `rgb(${palette.canvas})` }} />
+                      <span className="h-full w-1/2" style={{ background: `rgb(${palette.primary})` }} />
+                    </span>
+                    {t(`settings:theme.brand.${preset}`)}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4">
+              <label className="mb-1 block text-sm">{t("qrOrdering.themeMode", { defaultValue: "Appearance" })}</label>
+              <div className="inline-flex overflow-hidden rounded-full border border-border">
+                {(["light", "dark", "system"] as const).map((mode) => {
+                  const active = (draft.themeMode ?? "system") === mode;
+                  return (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => set("themeMode", mode)}
+                      className={cn(
+                        "px-4 py-1.5 text-sm transition-colors",
+                        active ? "bg-primary text-primary-fg font-semibold" : "text-muted",
+                      )}
+                    >
+                      {t(`settings:theme.${mode}`)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 

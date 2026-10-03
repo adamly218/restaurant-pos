@@ -1023,6 +1023,9 @@
     "copyLink": "Bağlantıyı kopyala",
     "linkCopied": "Bağlantı kopyalandı",
     "copyFailed": "Bağlantı kopyalanamadı",
-    "open": "Aç"
+    "open": "Aç",
+    "themeTitle": "Müşteri sayfası teması",
+    "themeDescription": "QR sipariş sayfasının renkleri. Açık/koyu mod her müşterinin telefonunu takip edebilir.",
+    "themeMode": "Görünüm"
   }
 }

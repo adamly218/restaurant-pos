@@ -19,6 +19,10 @@ export interface SelfOrderSettings {
   /** null = hide categories that only contain modifier dishes */
   hiddenCategoryIds: string[] | null;
   baseUrl: string;
+  /** Brand color pack for the customer QR page (matches app presets). */
+  themeBrand: string;
+  /** light | dark | system (system follows each customer's device). */
+  themeMode: string;
 }
 
 export interface SelfOrderTable {

@@ -1023,6 +1023,9 @@
     "copyLink": "Copy link",
     "linkCopied": "Link copied",
     "copyFailed": "Could not copy the link",
-    "open": "Open"
+    "open": "Open",
+    "themeTitle": "Customer page theme",
+    "themeDescription": "Colors for the QR ordering page. Light/dark can follow each customer’s phone.",
+    "themeMode": "Appearance"
   }
 }

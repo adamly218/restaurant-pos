@@ -1023,6 +1023,9 @@
     "copyLink": "Link kopiëren",
     "linkCopied": "Link gekopieerd",
     "copyFailed": "Kon de link niet kopiëren",
-    "open": "Openen"
+    "open": "Openen",
+    "themeTitle": "Thema van de klantpagina",
+    "themeDescription": "Kleuren van de QR-bestelpagina. Licht/donker kan de telefoon van elke klant volgen.",
+    "themeMode": "Weergave"
   }
 }

@@ -20,6 +20,8 @@ const payments = require('./payment-client');
 const TERMINAL_ID = 'self-order';
 const SETTINGS_KEY = 'self_order';
 const ONLINE_GATEWAYS = ['stripe', 'paypal'];
+const THEME_BRANDS = ['classic', 'ocean', 'forest', 'cream', 'ruby', 'sapphire'];
+const THEME_MODES = ['light', 'dark', 'system'];
 const MAX_LINES = 50;
 const MAX_QUANTITY = 50;
 const CHECKOUT_TTL_MS = 60 * 60 * 1000;
@@ -37,6 +39,8 @@ const DEFAULT_SETTINGS = {
   timezone: 'UTC',
   hiddenCategoryIds: null,
   baseUrl: '',
+  themeBrand: 'classic',
+  themeMode: 'system',
 };
 
 class SelfOrderError extends Error {
@@ -116,6 +120,14 @@ async function saveSettings(db, input) {
     next.hiddenCategoryIds = input.hiddenCategoryIds === null ? null : cleanIdList(input.hiddenCategoryIds);
   }
   if ('baseUrl' in input) next.baseUrl = str(input.baseUrl, 300).replace(/\/+$/, '');
+  if ('themeBrand' in input) {
+    const brand = str(input.themeBrand, 20).toLowerCase();
+    if (THEME_BRANDS.includes(brand)) next.themeBrand = brand;
+  }
+  if ('themeMode' in input) {
+    const mode = str(input.themeMode, 10).toLowerCase();
+    if (THEME_MODES.includes(mode)) next.themeMode = mode;
+  }
 
   await db.query(
     `UPSERT type::record('setting', 'self_order') MERGE { key: $key, is_global: true, values: $values }`,
@@ -259,6 +271,7 @@ async function getPublicMenu(db, token) {
     restaurant: { name: settings.restaurantName, welcomeText: settings.welcomeText },
     table: { name: table.name, number: table.number, floor: table.floorName },
     currency: settings.currency,
+    theme: { brand: settings.themeBrand, mode: settings.themeMode },
     orderTax: orderTax ? { id: idOf(orderTax.id), name: String(orderTax.name ?? 'Tax'), rate: Number(orderTax.rate || 0) } : null,
     categories,
     dishes: dishes.map((dish) => ({

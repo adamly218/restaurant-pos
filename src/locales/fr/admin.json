@@ -1023,6 +1023,9 @@
     "copyLink": "Copier le lien",
     "linkCopied": "Lien copié",
     "copyFailed": "Impossible de copier le lien",
-    "open": "Ouvrir"
+    "open": "Ouvrir",
+    "themeTitle": "Thème de la page client",
+    "themeDescription": "Couleurs de la page de commande par QR. Le mode clair/sombre peut suivre le téléphone de chaque client.",
+    "themeMode": "Apparence"
   }
 }

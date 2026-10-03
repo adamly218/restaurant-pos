@@ -44,6 +44,7 @@ export interface PublicMenu {
   restaurant: { name: string; welcomeText: string };
   table: { name: string; number: string; floor: string };
   currency: string;
+  theme?: { brand: string; mode: string };
   orderTax: TaxInfo | null;
   categories: Array<{ id: string; name: string }>;
   dishes: MenuDish[];
