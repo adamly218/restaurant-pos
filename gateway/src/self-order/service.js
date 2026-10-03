@@ -587,11 +587,39 @@ function publicStatus(checkout) {
     orderNumber: checkout.invoice_display ?? (checkout.invoice_number != null ? String(checkout.invoice_number) : null),
     quote: checkout.quote,
     message: checkout.status === 'failed' ? checkout.error ?? null : null,
+    orderReady: false,
   };
 }
 
+/** Kitchen statuses that mean the order is still being prepared. */
+const INCOMPLETE_KITCHEN_STATUSES = ['waiting', 'pending', 'in_progress'];
+
+/**
+ * True once every kitchen stage for the order is terminal (or the order has no
+ * kitchen work). Mirrors the order-display page's readiness classification.
+ */
+async function isOrderReady(db, orderId) {
+  const kitchenRows = rows(
+    await db.query(`SELECT status FROM order_item_kitchen WHERE order_item.order = $orderId`, {
+      orderId: toRecord('order', keyPart(orderId)),
+    }),
+  );
+  if (kitchenRows.length === 0) return true;
+  return !kitchenRows.some((row) => INCOMPLETE_KITCHEN_STATUSES.includes(String(row.status)));
+}
+
 async function getCheckoutStatus(db, checkoutId, token) {
-  return publicStatus(await loadCheckout(db, checkoutId, token));
+  const checkout = await loadCheckout(db, checkoutId, token);
+  const status = publicStatus(checkout);
+  if (checkout.status === 'submitted' && checkout.order_id) {
+    try {
+      status.orderReady = await isOrderReady(db, String(checkout.order_id));
+    } catch {
+      // Readiness is best-effort; a lookup failure must not break the status call.
+      status.orderReady = false;
+    }
+  }
+  return status;
 }
 
 /** Push the paid order to the POS through the sync protocol (idempotent per checkout). */

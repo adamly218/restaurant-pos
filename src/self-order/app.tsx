@@ -71,6 +71,7 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
   const [activeDish, setActiveDish] = useState<MenuDish | null>(null);
   const [sheet, setSheet] = useState<'none' | 'cart' | 'checkout'>('none');
   const [done, setDone] = useState<CheckoutStatus | null>(() => storage.get<CheckoutStatus>(`so-done:${token}`));
+  const [orderReady, setOrderReady] = useState(false);
   const [resuming, setResuming] = useState(!!returningCheckoutId);
 
   const load = useCallback(() => {
@@ -120,6 +121,36 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [returningCheckoutId, token]);
 
+  // While the order is with the kitchen, poll for readiness so the guest gets a
+  // visual + haptic alert (no spoken announcement, unlike the order-display screen).
+  useEffect(() => {
+    if (!done || !isSettled(done) || orderReady) return;
+    const checkoutId = done.checkoutId;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const status = await api.status(token, checkoutId);
+        if (cancelled || !status?.orderReady) return;
+        setOrderReady(true);
+        try {
+          navigator.vibrate?.([180, 120, 180, 120, 380]);
+        } catch {
+          /* vibration unsupported (e.g. iOS) — the visual alert still shows */
+        }
+      } catch {
+        /* transient network error — retry on the next tick */
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(poll, 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [done, orderReady, token]);
+
   const dishMap = useMemo(() => new Map((menu?.dishes ?? []).map((d) => [d.id, d])), [menu]);
   const liveCart = useMemo(() => cart.filter((line) => dishMap.has(line.dishId)), [cart, dishMap]);
   const cartCount = liveCart.reduce((sum, l) => sum + l.quantity, 0);
@@ -134,10 +165,12 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
     return (
       <DoneScreen
         status={done}
+        orderReady={orderReady}
         restaurantName={menu?.restaurant.name ?? ''}
         tableLabel={menu ? tableLabel(menu) : ''}
         onNewOrder={() => {
           setDone(null);
+          setOrderReady(false);
           storage.set(`so-done:${token}`, null);
         }}
       />
@@ -894,11 +927,13 @@ function CheckoutSheet({
 
 function DoneScreen({
   status,
+  orderReady,
   restaurantName,
   tableLabel,
   onNewOrder,
 }: {
   status: CheckoutStatus;
+  orderReady?: boolean;
   restaurantName: string;
   tableLabel: string;
   onNewOrder: () => void;
@@ -931,18 +966,32 @@ function DoneScreen({
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col">
       <div className="so-hero px-6 pb-16 pt-14 text-center text-[color:var(--so-on-ink)]">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-on-ink)] text-2xl text-[color:var(--so-gold-soft)]">
-          ✓
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-[color:var(--so-on-ink)] text-2xl text-[color:var(--so-gold-soft)] ${orderReady ? 'animate-bounce' : ''}`}>
+          {orderReady ? '🔔' : '✓'}
         </div>
         <p className="so-eyebrow mt-6 text-[color:var(--so-gold-soft)]">{restaurantName || 'Order confirmed'}</p>
-        <h1 className="so-serif mt-2 text-[2.1rem] font-bold tracking-tight leading-tight">Thank you</h1>
+        <h1 className="so-serif mt-2 text-[2.1rem] font-bold tracking-tight leading-tight">
+          {orderReady ? 'Your order is ready!' : 'Thank you'}
+        </h1>
         <p className="mx-auto mt-3 max-w-xs text-[0.95rem] leading-relaxed text-[color:var(--so-on-ink)]">
-          Your order is paid and already with the kitchen. We’ll bring it to your table.
+          {orderReady
+            ? 'The kitchen has finished your order — we’ll bring it to your table.'
+            : 'Your order is paid and with the kitchen. Keep this page open — we’ll alert you here when it’s ready.'}
         </p>
       </div>
 
       <div className="-mt-10 px-5">
         <div className="rounded-3xl border border-[color:var(--so-line)] bg-[color:var(--so-card)] p-6 shadow-[0_20px_50px_-25px_rgba(23,20,15,0.45)]">
+          {orderReady && (
+            <div className="mb-5 rounded-2xl border-2 border-[color:var(--so-gold)] bg-[color:var(--so-card)] p-4 text-center">
+              <p className="so-serif text-xl font-bold text-[color:var(--so-gold-ink)]">
+                Your order is ready
+              </p>
+              <p className="mt-1 text-sm text-[color:var(--so-muted)]">
+                Please collect it from the counter or wait for it at your table.
+              </p>
+            </div>
+          )}
           {status.orderNumber && (
             <div className="text-center">
               <p className="so-eyebrow text-[color:var(--so-muted)]">Order number</p>

@@ -7,6 +7,14 @@ export interface ReleaseNotes {
 /** Newest-first release notes shown in the What's New dialog. */
 export const RELEASES: ReleaseNotes[] = [
   {
+    date: '2026-10-03',
+    title: 'QR page theme and order-ready alerts',
+    items: [
+      'The QR ordering page now uses the app fonts and can match any brand color pack (Classic, Ocean, Forest, Cream, Ruby, Sapphire) with light, dark, or system appearance — configured in Manage → QR Ordering.',
+      'Guests are alerted on the confirmation screen when the kitchen marks their order ready, with a vibration on supported phones.',
+    ],
+  },
+  {
     date: '2026-10-02',
     title: 'QR table ordering',
     items: [

@@ -86,6 +86,8 @@ export interface CheckoutStatus {
   orderNumber: string | null;
   quote: Quote;
   message: string | null;
+  /** True once the kitchen has finished every stage of the order. */
+  orderReady?: boolean;
 }
 
 export class ApiError extends Error {
