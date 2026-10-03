@@ -35,7 +35,8 @@
     "colorCanvas": "Fondo",
     "colorSurface": "Superficie",
     "colorForeground": "Texto",
-    "colorPrimary": "Primario"
+    "colorPrimary": "Primario",
+    "colorBorder": "Borde"
   },
   "touch": {
     "title": "Teclado en pantalla",

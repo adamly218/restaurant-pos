@@ -233,7 +233,9 @@ export function deriveBrandPaletteFromBase(
       surfaceElevated: rgbToChannels(mixRgb(surface, { r: 255, g: 255, b: 255 }, 0.6)),
       foreground: rgbToChannels(foreground),
       muted: rgbToChannels(mixRgb(foreground, canvas, 0.55)),
-      border: rgbToChannels(mixRgb(canvas, foreground, 0.9)),
+      // Derive the border from the surface (not the canvas) so it stays visibly
+      // distinct from the cards it outlines, even when surface ≈ canvas.
+      border: rgbToChannels(mixRgb(surface, foreground, 0.82)),
       primary: rgbToChannels(primary),
       primaryFg: contrastingForeground(primary),
       warning: '217 119 6',
@@ -260,7 +262,7 @@ export function deriveBrandPaletteFromBase(
     surfaceElevated: rgbToChannels(darkElevated),
     foreground: rgbToChannels(darkForeground),
     muted: rgbToChannels(hslToRgb({ h: fh, s: clamp01(Math.max(fs, 0.12)), l: 0.72 })),
-    border: rgbToChannels(hslToRgb({ h: ch, s: clamp01(Math.max(cs, 0.14)), l: 0.26 })),
+    border: rgbToChannels(hslToRgb({ h: sh, s: clamp01(Math.max(ss, 0.16)), l: 0.28 })),
     primary: rgbToChannels(darkPrimary),
     primaryFg: contrastingForeground(darkPrimary),
     warning: '251 191 36',

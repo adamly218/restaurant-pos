@@ -35,7 +35,8 @@
     "colorCanvas": "Achtergrond",
     "colorSurface": "Oppervlak",
     "colorForeground": "Tekst",
-    "colorPrimary": "Primair"
+    "colorPrimary": "Primair",
+    "colorBorder": "Rand"
   },
   "touch": {
     "title": "Schermtoetsenbord",

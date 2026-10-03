@@ -35,7 +35,8 @@
     "colorCanvas": "Arka plan",
     "colorSurface": "Yüzey",
     "colorForeground": "Metin",
-    "colorPrimary": "Ana renk"
+    "colorPrimary": "Ana renk",
+    "colorBorder": "Kenarlık"
   },
   "touch": {
     "title": "Ekran klavyesi",

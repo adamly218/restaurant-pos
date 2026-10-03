@@ -35,7 +35,8 @@
     "colorCanvas": "Sfondo",
     "colorSurface": "Superficie",
     "colorForeground": "Testo",
-    "colorPrimary": "Primario"
+    "colorPrimary": "Primario",
+    "colorBorder": "Bordo"
   },
   "touch": {
     "title": "Tastiera su schermo",

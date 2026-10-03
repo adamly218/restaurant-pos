@@ -48,27 +48,28 @@ function ColorField({
   };
 
   return (
-    <div className="flex items-end gap-2">
-      <div>
-        <label className="form-label">{label}</label>
+    <div>
+      <label className="form-label">{label}</label>
+      <div className="flex items-center gap-2">
         <Input
           type="color"
-          className="h-12 w-16 cursor-pointer p-1"
+          className="h-12 w-16 flex-1 cursor-pointer p-1"
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
-      </div>
-      <div className="min-w-[8rem] flex-1">
-        <Input
-          type="text"
-          value={draft}
-          placeholder="#000000"
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => commit(draft)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commit(draft);
-          }}
-        />
+        <div className="min-w-0 flex-1">
+          <Input
+            type="text"
+            className="h-12"
+            value={draft}
+            placeholder="#000000"
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => commit(draft)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit(draft);
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -171,7 +172,7 @@ export const ThemeSettings = () => {
       {currentBrand === 'custom' ? (
         <div className="rounded-lg border border-border bg-surface p-4" data-testid="settings-custom-brand">
           <p className="text-sm text-muted mb-3">{t('theme.customDescription')}</p>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3">
             {BASE_FIELDS.map((field) => (
               <ColorField
                 key={field.key}
@@ -181,15 +182,22 @@ export const ThemeSettings = () => {
               />
             ))}
           </div>
-          <div className="mt-4 flex flex-wrap gap-2 items-center">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <span className="text-xs text-muted">{t('theme.customPreview')}</span>
-            {[preview.primary, preview.surface, preview.canvas, preview.border].map((channels, index) => (
-              <span
-                key={index}
-                className="inline-block h-6 w-6 rounded-md border border-border"
-                style={{ backgroundColor: rgbChannelsToHex(channels) }}
-                title={['primary', 'surface', 'canvas', 'border'][index]}
-              />
+            {[
+              { channels: preview.canvas, label: t('theme.colorCanvas') },
+              { channels: preview.surface, label: t('theme.colorSurface') },
+              { channels: preview.foreground, label: t('theme.colorForeground') },
+              { channels: preview.primary, label: t('theme.colorPrimary') },
+              { channels: preview.border, label: t('theme.colorBorder') },
+            ].map((swatch) => (
+              <span key={swatch.label} className="flex flex-col items-center gap-1">
+                <span
+                  className="inline-block h-6 w-6 rounded-md border border-border"
+                  style={{ backgroundColor: rgbChannelsToHex(swatch.channels) }}
+                />
+                <span className="text-[10px] text-muted">{swatch.label}</span>
+              </span>
             ))}
           </div>
         </div>

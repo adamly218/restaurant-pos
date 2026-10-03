@@ -35,7 +35,8 @@
     "colorCanvas": "Arrière-plan",
     "colorSurface": "Surface",
     "colorForeground": "Texte",
-    "colorPrimary": "Primaire"
+    "colorPrimary": "Primaire",
+    "colorBorder": "Bordure"
   },
   "touch": {
     "title": "Clavier à l'écran",

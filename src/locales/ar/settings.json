@@ -35,7 +35,8 @@
     "colorCanvas": "الخلفية",
     "colorSurface": "السطح",
     "colorForeground": "النص",
-    "colorPrimary": "اللون الأساسي"
+    "colorPrimary": "اللون الأساسي",
+    "colorBorder": "الحدود"
   },
   "touch": {
     "title": "لوحة المفاتيح على الشاشة",

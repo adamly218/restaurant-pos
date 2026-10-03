@@ -35,7 +35,8 @@
     "colorCanvas": "Background",
     "colorSurface": "Surface",
     "colorForeground": "Text",
-    "colorPrimary": "Primary"
+    "colorPrimary": "Primary",
+    "colorBorder": "Border"
   },
   "touch": {
     "title": "On screen keyboard",

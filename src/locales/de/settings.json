@@ -35,7 +35,8 @@
     "colorCanvas": "Hintergrund",
     "colorSurface": "Fläche",
     "colorForeground": "Text",
-    "colorPrimary": "Primär"
+    "colorPrimary": "Primär",
+    "colorBorder": "Rahmen"
   },
   "touch": {
     "title": "Bildschirmtastatur",
