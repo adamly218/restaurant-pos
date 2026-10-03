@@ -27,7 +27,7 @@
       "sapphire": "Saffier",
       "custom": "Aangepast"
     },
-    "customDescription": "Stel de vier basiskleuren in. Donkere modus en de overige tinten worden automatisch afgeleid.",
+    "customDescription": "Kies een primaire kleur. Oppervlakken, randen en accenten worden eruit afgeleid voor licht en donker.",
     "customPrimary": "Primaire kleur",
     "customHex": "Hex",
     "customApply": "Toepassen",

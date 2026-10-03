@@ -27,7 +27,7 @@
       "sapphire": "Saphir",
       "custom": "Personnalisé"
     },
-    "customDescription": "Définissez les quatre couleurs de base. Le mode sombre et les autres teintes sont dérivés automatiquement.",
+    "customDescription": "Choisissez une couleur principale. Les surfaces, bordures et accents en sont dérivés pour les modes clair et sombre.",
     "customPrimary": "Couleur primaire",
     "customHex": "Hex",
     "customApply": "Appliquer",

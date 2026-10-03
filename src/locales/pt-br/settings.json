@@ -27,7 +27,7 @@
       "sapphire": "Safira",
       "custom": "Personalizado"
     },
-    "customDescription": "Defina as quatro cores base. O modo escuro e os demais tons são derivados automaticamente.",
+    "customDescription": "Escolha uma cor primária. Superfícies, bordas e destaques são derivados dela para os modos claro e escuro.",
     "customPrimary": "Cor primária",
     "customHex": "Hex",
     "customApply": "Aplicar",

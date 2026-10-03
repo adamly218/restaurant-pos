@@ -1,8 +1,9 @@
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { appPage } from '@/store/jotai.ts';
 import { cn } from '@/lib/utils.ts';
+import { Button } from '@/components/common/input/button.tsx';
 import { Input } from '@/components/common/input/input.tsx';
 import { useTheme } from '@/providers/theme.provider.tsx';
 import {
@@ -15,70 +16,10 @@ import {
   type AppThemePreference,
 } from '@/lib/theme.ts';
 import {
-  normalizeCustomBase,
+  DEFAULT_CUSTOM_PRIMARY,
   normalizeHex,
-  type CustomPaletteBase,
 } from '@/lib/derive-brand-palette.ts';
 import { resolveBrandPalette } from '@/lib/brand-palettes.ts';
-
-/** The four base colors a custom theme is built from. */
-const BASE_FIELDS: Array<{ key: keyof CustomPaletteBase; labelKey: string }> = [
-  { key: 'canvas', labelKey: 'theme.colorCanvas' },
-  { key: 'surface', labelKey: 'theme.colorSurface' },
-  { key: 'foreground', labelKey: 'theme.colorForeground' },
-  { key: 'primary', labelKey: 'theme.colorPrimary' },
-];
-
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (hex: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  const commit = (raw: string) => {
-    const hex = normalizeHex(raw);
-    if (hex) onChange(hex);
-    else setDraft(value);
-  };
-
-  return (
-    <div>
-      <label className="form-label">{label}</label>
-      <div className="flex items-center gap-2">
-        <Input
-          type="color"
-          className="h-12 w-16 flex-1 cursor-pointer p-1"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        <div className="min-w-0 flex-1">
-          <Input
-            type="text"
-            className="h-12"
-            value={draft}
-            placeholder="#000000"
-            onChange={(e) => {
-              setDraft(e.target.value);
-              // Apply as soon as the value is a valid hex (so typed colors show).
-              const hex = normalizeHex(e.target.value);
-              if (hex) onChange(hex);
-            }}
-            onBlur={() => commit(draft)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commit(draft);
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export const ThemeSettings = () => {
   const [page, setPage] = useAtom(appPage);
@@ -86,32 +27,25 @@ export const ThemeSettings = () => {
   const { resolvedTheme } = useTheme();
   const currentTheme: AppThemePreference = page.theme ?? DEFAULT_THEME;
   const currentBrand: AppBrandId = page.brand ?? DEFAULT_BRAND;
+  const storedPrimary = normalizeHex(page.customPrimary) ?? DEFAULT_CUSTOM_PRIMARY;
+  const [hexDraft, setHexDraft] = useState(storedPrimary);
 
-  // Four base colors (hex); seeded from an older single primary if needed.
-  const base = useMemo(
-    () => normalizeCustomBase(page.customPaletteBase ?? page.customPrimary),
-    [page.customPaletteBase, page.customPrimary],
-  );
-  const preview = useMemo(
-    () => resolveBrandPalette('custom', resolvedTheme, base),
-    [base, resolvedTheme],
-  );
+  const preview = useMemo(() => {
+    const hex = normalizeHex(hexDraft) ?? storedPrimary;
+    return resolveBrandPalette('custom', resolvedTheme, hex);
+  }, [hexDraft, storedPrimary, resolvedTheme]);
 
-  const updateBase = (patch: Partial<CustomPaletteBase>) => {
-    setPage((prev) => {
-      const next = { ...normalizeCustomBase(prev.customPaletteBase ?? prev.customPrimary), ...patch };
-      return { ...prev, brand: 'custom', customPaletteBase: next, customPrimary: next.primary };
-    });
-  };
-
-  const selectBrand = (brandId: AppBrandId) => {
-    setPage((prev) => {
-      if (brandId !== 'custom') {
-        return { ...prev, brand: brandId };
-      }
-      const next = normalizeCustomBase(prev.customPaletteBase ?? prev.customPrimary);
-      return { ...prev, brand: 'custom', customPaletteBase: next, customPrimary: next.primary };
-    });
+  const applyCustomPrimary = (raw: string) => {
+    const hex = normalizeHex(raw);
+    if (!hex) return;
+    setHexDraft(hex);
+    setPage((prev) => ({
+      ...prev,
+      brand: 'custom',
+      customPrimary: hex,
+      // Drop any four-color base saved by the earlier experiment.
+      customPaletteBase: undefined,
+    }));
   };
 
   return (
@@ -152,13 +86,25 @@ export const ThemeSettings = () => {
       </div>
       <div className="flex flex-wrap gap-2 mb-6">
         {BRAND_IDS.map((brandId) => {
-          const palette = resolveBrandPalette(brandId, resolvedTheme, base);
+          const swatchPrimary = normalizeHex(hexDraft) ?? storedPrimary;
+          const palette = resolveBrandPalette(brandId, resolvedTheme, swatchPrimary);
           const active = currentBrand === brandId;
           return (
             <button
               key={brandId}
               type="button"
-              onClick={() => selectBrand(brandId)}
+              onClick={() => {
+                setPage((prev) => ({
+                  ...prev,
+                  brand: brandId,
+                  ...(brandId === 'custom'
+                    ? { customPrimary: normalizeHex(prev.customPrimary) ?? DEFAULT_CUSTOM_PRIMARY, customPaletteBase: undefined }
+                    : {}),
+                }));
+                if (brandId === 'custom') {
+                  setHexDraft(storedPrimary);
+                }
+              }}
               className={cn(
                 'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
                 active ? 'border-primary bg-primary/10 font-semibold' : 'border-border',
@@ -177,32 +123,61 @@ export const ThemeSettings = () => {
       {currentBrand === 'custom' ? (
         <div className="rounded-lg border border-border bg-surface p-4" data-testid="settings-custom-brand">
           <p className="text-sm text-muted mb-3">{t('theme.customDescription')}</p>
-          <div className="grid gap-3">
-            {BASE_FIELDS.map((field) => (
-              <ColorField
-                key={field.key}
-                label={t(field.labelKey)}
-                value={base[field.key]}
-                onChange={(hex) => updateBase({ [field.key]: hex })}
-              />
-            ))}
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <span className="text-xs text-muted">{t('theme.customPreview')}</span>
-            {[
-              { channels: preview.canvas, label: t('theme.colorCanvas') },
-              { channels: preview.surface, label: t('theme.colorSurface') },
-              { channels: preview.foreground, label: t('theme.colorForeground') },
-              { channels: preview.primary, label: t('theme.colorPrimary') },
-              { channels: preview.border, label: t('theme.colorBorder') },
-            ].map((swatch) => (
-              <span key={swatch.label} className="flex flex-col items-center gap-1">
-                <span
-                  className="inline-block h-6 w-6 rounded-md border border-border"
-                  style={{ backgroundColor: rgbChannelsToHex(swatch.channels) }}
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="form-label" htmlFor="theme-custom-color">
+                {t('theme.customPrimary')}
+              </label>
+              <div>
+                <Input
+                  id="theme-custom-color"
+                  type="color"
+                  className="h-12 w-16 cursor-pointer p-1"
+                  value={normalizeHex(hexDraft) ?? storedPrimary}
+                  onChange={(e) => applyCustomPrimary(e.target.value)}
                 />
-                <span className="text-[10px] text-muted">{swatch.label}</span>
-              </span>
+              </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <label className="form-label" htmlFor="theme-custom-hex">
+                {t('theme.customHex')}
+              </label>
+              <div>
+                <Input
+                  id="theme-custom-hex"
+                  type="text"
+                  value={hexDraft}
+                  placeholder={DEFAULT_CUSTOM_PRIMARY}
+                  onChange={(e) => {
+                    setHexDraft(e.target.value);
+                    const hex = normalizeHex(e.target.value);
+                    if (hex) applyCustomPrimary(hex);
+                  }}
+                  onBlur={() => applyCustomPrimary(hexDraft)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') applyCustomPrimary(hexDraft);
+                  }}
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              filled
+              onClick={() => applyCustomPrimary(hexDraft)}
+            >
+              {t('theme.customApply')}
+            </Button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-muted">{t('theme.customPreview')}</span>
+            {[preview.primary, preview.surface, preview.canvas, preview.border].map((channels, index) => (
+              <span
+                key={index}
+                className="inline-block h-6 w-6 rounded-md border border-border"
+                style={{ backgroundColor: rgbChannelsToHex(channels) }}
+                title={['primary', 'surface', 'canvas', 'border'][index]}
+              />
             ))}
           </div>
         </div>

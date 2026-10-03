@@ -27,7 +27,7 @@
       "sapphire": "Saphir",
       "custom": "Benutzerdefiniert"
     },
-    "customDescription": "Legen Sie die vier Grundfarben fest. Dunkelmodus und die übrigen Abstufungen werden automatisch abgeleitet.",
+    "customDescription": "Wählen Sie eine Primärfarbe. Flächen, Rahmen und Akzente werden daraus für Hell- und Dunkelmodus abgeleitet.",
     "customPrimary": "Primärfarbe",
     "customHex": "Hex",
     "customApply": "Anwenden",

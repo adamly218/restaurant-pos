@@ -27,7 +27,7 @@
       "sapphire": "Zafiro",
       "custom": "Personalizado"
     },
-    "customDescription": "Define los cuatro colores base. El modo oscuro y los demás tonos se derivan automáticamente.",
+    "customDescription": "Elige un color primario. Las superficies, bordes y acentos se generan a partir de él para el modo claro y oscuro.",
     "customPrimary": "Color primario",
     "customHex": "Hex",
     "customApply": "Aplicar",
