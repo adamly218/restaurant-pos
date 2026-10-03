@@ -54,24 +54,28 @@ export const ThemeSettings = () => {
           <p className="text-sm text-muted">{t('theme.description')}</p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-2 mb-6">
-        {THEME_PREFERENCES.map((mode) => (
-          <Button
-            key={mode}
-            type="button"
-            variant="primary"
-            className={cn(currentTheme === mode ? 'active' : '')}
-            size="lg"
-            onClick={() => {
-              setPage((prev) => ({
-                ...prev,
-                theme: mode,
-              }));
-            }}
-          >
-            {t(`theme.${mode}`)}
-          </Button>
-        ))}
+      <div className="mb-6 inline-flex overflow-hidden rounded-full border border-border">
+        {THEME_PREFERENCES.map((mode) => {
+          const active = currentTheme === mode;
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => {
+                setPage((prev) => ({
+                  ...prev,
+                  theme: mode,
+                }));
+              }}
+              className={cn(
+                'px-4 py-1.5 text-sm transition-colors',
+                active ? 'bg-primary text-primary-fg font-semibold' : 'text-muted',
+              )}
+            >
+              {t(`theme.${mode}`)}
+            </button>
+          );
+        })}
       </div>
 
       <div className="mb-3">
@@ -79,28 +83,38 @@ export const ThemeSettings = () => {
         <p className="text-sm text-muted">{t('theme.brandDescription')}</p>
       </div>
       <div className="flex flex-wrap gap-2 mb-6">
-        {BRAND_IDS.map((brandId) => (
-          <Button
-            key={brandId}
-            type="button"
-            variant="primary"
-            className={cn(currentBrand === brandId ? 'active' : '')}
-            size="lg"
-            onClick={() => {
-              const nextPrimary = normalizeHex(page.customPrimary) ?? DEFAULT_CUSTOM_PRIMARY;
-              setPage((prev) => ({
-                ...prev,
-                brand: brandId,
-                ...(brandId === 'custom' ? { customPrimary: nextPrimary } : {}),
-              }));
-              if (brandId === 'custom') {
-                setHexDraft(nextPrimary);
-              }
-            }}
-          >
-            {t(`theme.brand.${brandId}`)}
-          </Button>
-        ))}
+        {BRAND_IDS.map((brandId) => {
+          const swatchPrimary = normalizeHex(hexDraft) ?? storedPrimary;
+          const palette = resolveBrandPalette(brandId, resolvedTheme, swatchPrimary);
+          const active = currentBrand === brandId;
+          return (
+            <button
+              key={brandId}
+              type="button"
+              onClick={() => {
+                const nextPrimary = normalizeHex(page.customPrimary) ?? DEFAULT_CUSTOM_PRIMARY;
+                setPage((prev) => ({
+                  ...prev,
+                  brand: brandId,
+                  ...(brandId === 'custom' ? { customPrimary: nextPrimary } : {}),
+                }));
+                if (brandId === 'custom') {
+                  setHexDraft(nextPrimary);
+                }
+              }}
+              className={cn(
+                'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
+                active ? 'border-primary bg-primary/10 font-semibold' : 'border-border',
+              )}
+            >
+              <span className="flex h-4 w-4 overflow-hidden rounded-full border border-border" aria-hidden>
+                <span className="h-full w-1/2" style={{ background: `rgb(${palette.canvas})` }} />
+                <span className="h-full w-1/2" style={{ background: `rgb(${palette.primary})` }} />
+              </span>
+              {t(`theme.brand.${brandId}`)}
+            </button>
+          );
+        })}
       </div>
 
       {currentBrand === 'custom' ? (
