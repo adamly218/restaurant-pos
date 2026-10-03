@@ -22,7 +22,7 @@ import {
   type BrandPalette,
   type ResolvedAppTheme,
 } from '@/lib/theme.ts';
-import { DEFAULT_CUSTOM_PRIMARY, normalizeHex } from '@/lib/derive-brand-palette.ts';
+import { DEFAULT_CUSTOM_PRIMARY, normalizeCustomBase, normalizeHex } from '@/lib/derive-brand-palette.ts';
 
 interface ThemeContextValue {
   preference: AppThemePreference;
@@ -70,7 +70,7 @@ function syncDocumentTheme(
   customPrimary: string,
 ): void {
   if (typeof document === 'undefined') return;
-  const key = `${resolved}|${brand}|${customPrimary}|${palette.primary}|${palette.canvas}`;
+  const key = `${resolved}|${brand}|${customPrimary}|${JSON.stringify(palette)}`;
   if (key === lastAppliedKey) return;
   lastAppliedKey = key;
   applyDocumentTheme(resolved);
@@ -86,7 +86,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const page = useAtomValue(appPage);
   const preference = isAppThemePreference(page.theme) ? page.theme : DEFAULT_THEME;
   const brand = isAppBrandId(page.brand) ? page.brand : DEFAULT_BRAND;
-  const customPrimary = normalizeHex(page.customPrimary) ?? DEFAULT_CUSTOM_PRIMARY;
+  const customBase = page.customPaletteBase ? normalizeCustomBase(page.customPaletteBase) : null;
+  const customPrimary = customBase?.primary ?? normalizeHex(page.customPrimary) ?? DEFAULT_CUSTOM_PRIMARY;
   const systemPrefersDark = useSyncExternalStore(
     subscribeSystemTheme,
     getSystemThemeSnapshot,
@@ -98,7 +99,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       ? (systemPrefersDark ? 'dark' : 'light')
       : resolveAppTheme(preference);
 
-  const palette = resolveBrandPalette(brand, resolvedTheme, customPrimary);
+  const palette = resolveBrandPalette(brand, resolvedTheme, customBase ?? customPrimary);
 
   // Apply before children render so CSS vars / consumers see the current brand immediately.
   syncDocumentTheme(resolvedTheme, brand, palette, customPrimary);

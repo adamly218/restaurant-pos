@@ -27,11 +27,15 @@
       "sapphire": "Zaffiro",
       "custom": "Personalizzato"
     },
-    "customDescription": "Scegli un colore primario. Superfici, bordi e accenti vengono derivati per chiaro e scuro.",
+    "customDescription": "Imposta i quattro colori di base. Il tema scuro e le altre tonalità vengono derivati automaticamente.",
     "customPrimary": "Colore primario",
     "customHex": "Hex",
     "customApply": "Applica",
-    "customPreview": "Anteprima"
+    "customPreview": "Anteprima",
+    "colorCanvas": "Sfondo",
+    "colorSurface": "Superficie",
+    "colorForeground": "Testo",
+    "colorPrimary": "Primario"
   },
   "touch": {
     "title": "Tastiera su schermo",

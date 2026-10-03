@@ -27,11 +27,15 @@
       "sapphire": "Сапфир",
       "custom": "Свой"
     },
-    "customDescription": "Выберите основной цвет. Поверхности, границы и акценты строятся для светлой и тёмной темы.",
+    "customDescription": "Задайте четыре основных цвета. Тёмная тема и остальные оттенки выводятся автоматически.",
     "customPrimary": "Основной цвет",
     "customHex": "Hex",
     "customApply": "Применить",
-    "customPreview": "Просмотр"
+    "customPreview": "Просмотр",
+    "colorCanvas": "Фон",
+    "colorSurface": "Поверхность",
+    "colorForeground": "Текст",
+    "colorPrimary": "Основной"
   },
   "touch": {
     "title": "Экранная клавиатура",

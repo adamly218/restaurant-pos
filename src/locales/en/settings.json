@@ -27,11 +27,15 @@
       "sapphire": "Sapphire",
       "custom": "Custom"
     },
-    "customDescription": "Pick a primary color. Surfaces, borders, and accents are built from it for light and dark mode.",
+    "customDescription": "Set the four base colors. Dark mode and the remaining shades are derived automatically.",
     "customPrimary": "Primary color",
     "customHex": "Hex",
     "customApply": "Apply",
-    "customPreview": "Preview"
+    "customPreview": "Preview",
+    "colorCanvas": "Background",
+    "colorSurface": "Surface",
+    "colorForeground": "Text",
+    "colorPrimary": "Primary"
   },
   "touch": {
     "title": "On screen keyboard",

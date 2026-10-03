@@ -157,3 +157,119 @@ export function previewCustomSwatches(hex: string): { light: BrandPalette; dark:
     dark: deriveBrandPalette(hex, 'dark'),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Four-color custom themes                                            */
+/* ------------------------------------------------------------------ */
+
+/** The four user-set base colors for a custom theme (all `#rrggbb`). */
+export interface CustomPaletteBase {
+  /** Page background. */
+  canvas: string;
+  /** Card/panel surface. */
+  surface: string;
+  /** Body text. */
+  foreground: string;
+  /** Accent / buttons. */
+  primary: string;
+}
+
+function channelsToHex(channels: string): string {
+  const [r, g, b] = channels.trim().split(/\s+/).map(Number);
+  return `#${[r, g, b]
+    .map((n) => Math.max(0, Math.min(255, Math.round(n || 0))).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+function mixRgb(a: Rgb, b: Rgb, weightA: number): Rgb {
+  return {
+    r: a.r * weightA + b.r * (1 - weightA),
+    g: a.g * weightA + b.g * (1 - weightA),
+    b: a.b * weightA + b.b * (1 - weightA),
+  };
+}
+
+/** Seed a full base from a legacy single primary (derives canvas/surface/text). */
+export function normalizeCustomBase(
+  input?: Partial<CustomPaletteBase> | string | null,
+): CustomPaletteBase {
+  if (typeof input === 'string') {
+    const palette = deriveBrandPalette(input, 'light');
+    return {
+      canvas: channelsToHex(palette.canvas),
+      surface: channelsToHex(palette.surface),
+      foreground: channelsToHex(palette.foreground),
+      primary: normalizeHex(input) ?? DEFAULT_CUSTOM_PRIMARY,
+    };
+  }
+  const primary = normalizeHex(input?.primary) ?? DEFAULT_CUSTOM_PRIMARY;
+  const seed = deriveBrandPalette(primary, 'light');
+  return {
+    canvas: normalizeHex(input?.canvas) ?? channelsToHex(seed.canvas),
+    surface: normalizeHex(input?.surface) ?? channelsToHex(seed.surface),
+    foreground: normalizeHex(input?.foreground) ?? channelsToHex(seed.foreground),
+    primary,
+  };
+}
+
+/**
+ * Build a full palette from four base colors. Light uses the colors directly
+ * (the rest is derived for contrast); dark remaps each base color's hue and
+ * saturation to a dark-appropriate lightness so one base covers both modes.
+ */
+export function deriveBrandPaletteFromBase(
+  base: CustomPaletteBase,
+  mode: ResolvedAppTheme,
+): BrandPalette {
+  const canvas = hexToRgb(base.canvas);
+  const surface = hexToRgb(base.surface);
+  const foreground = hexToRgb(base.foreground);
+  const primary = hexToRgb(base.primary);
+
+  if (mode === 'light') {
+    return {
+      canvas: rgbToChannels(canvas),
+      surface: rgbToChannels(surface),
+      surfaceElevated: rgbToChannels(mixRgb(surface, { r: 255, g: 255, b: 255 }, 0.6)),
+      foreground: rgbToChannels(foreground),
+      muted: rgbToChannels(mixRgb(foreground, canvas, 0.55)),
+      border: rgbToChannels(mixRgb(canvas, foreground, 0.9)),
+      primary: rgbToChannels(primary),
+      primaryFg: contrastingForeground(primary),
+      warning: '217 119 6',
+      danger: '220 38 38',
+      success: '5 150 105',
+      info: '14 165 233',
+    };
+  }
+
+  const { h: ch, s: cs } = rgbToHsl(canvas);
+  const { h: sh, s: ss } = rgbToHsl(surface);
+  const { h: fh, s: fs } = rgbToHsl(foreground);
+  const { h: ph, s: ps, l: pl } = rgbToHsl(primary);
+
+  const darkCanvas = hslToRgb({ h: ch, s: clamp01(Math.max(cs, 0.08)), l: 0.06 });
+  const darkSurface = hslToRgb({ h: sh, s: clamp01(Math.max(ss, 0.1)), l: 0.11 });
+  const darkElevated = hslToRgb({ h: sh, s: clamp01(Math.max(ss, 0.12)), l: 0.18 });
+  const darkForeground = hslToRgb({ h: fh, s: clamp01(Math.max(fs, 0.08)), l: 0.93 });
+  const darkPrimary = hslToRgb({ h: ph, s: clamp01(Math.max(ps, 0.4)), l: clamp01(Math.max(pl, 0.58)) });
+
+  return {
+    canvas: rgbToChannels(darkCanvas),
+    surface: rgbToChannels(darkSurface),
+    surfaceElevated: rgbToChannels(darkElevated),
+    foreground: rgbToChannels(darkForeground),
+    muted: rgbToChannels(hslToRgb({ h: fh, s: clamp01(Math.max(fs, 0.12)), l: 0.72 })),
+    border: rgbToChannels(hslToRgb({ h: ch, s: clamp01(Math.max(cs, 0.14)), l: 0.26 })),
+    primary: rgbToChannels(darkPrimary),
+    primaryFg: contrastingForeground(darkPrimary),
+    warning: '251 191 36',
+    danger: '248 113 113',
+    success: '52 211 153',
+    info: '56 189 248',
+  };
+}
+
+/** The four base colors a fresh custom theme starts from. */
+export const DEFAULT_CUSTOM_BASE: CustomPaletteBase = normalizeCustomBase(DEFAULT_CUSTOM_PRIMARY);
+

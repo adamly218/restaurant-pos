@@ -27,11 +27,15 @@
       "sapphire": "Zafiro",
       "custom": "Personalizado"
     },
-    "customDescription": "Elija un color primario. Superficies, bordes y acentos se generan para modo claro y oscuro.",
+    "customDescription": "Define los cuatro colores base. El modo oscuro y los demás tonos se derivan automáticamente.",
     "customPrimary": "Color primario",
     "customHex": "Hex",
     "customApply": "Aplicar",
-    "customPreview": "Vista previa"
+    "customPreview": "Vista previa",
+    "colorCanvas": "Fondo",
+    "colorSurface": "Superficie",
+    "colorForeground": "Texto",
+    "colorPrimary": "Primario"
   },
   "touch": {
     "title": "Teclado en pantalla",

@@ -27,11 +27,15 @@
       "sapphire": "Saffier",
       "custom": "Aangepast"
     },
-    "customDescription": "Kies een primaire kleur. Oppervlakken, randen en accenten worden afgeleid voor licht en donker.",
+    "customDescription": "Stel de vier basiskleuren in. Donkere modus en de overige tinten worden automatisch afgeleid.",
     "customPrimary": "Primaire kleur",
     "customHex": "Hex",
     "customApply": "Toepassen",
-    "customPreview": "Voorbeeld"
+    "customPreview": "Voorbeeld",
+    "colorCanvas": "Achtergrond",
+    "colorSurface": "Oppervlak",
+    "colorForeground": "Tekst",
+    "colorPrimary": "Primair"
   },
   "touch": {
     "title": "Schermtoetsenbord",
