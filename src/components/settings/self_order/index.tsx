@@ -12,8 +12,9 @@ import { ReactSelect } from "@/components/common/input/custom.react.select.tsx";
 import { DeleteConfirm } from "@/components/common/table/delete.confirm.tsx";
 import { getAppTimezone } from "@/lib/datetime.ts";
 import { getGatewayBaseUrl } from "@/lib/session.ts";
-import { BRAND_PRESET_IDS } from "@/lib/theme.ts";
-import { getBrandPalette } from "@/lib/brand-palettes.ts";
+import { BRAND_IDS, rgbChannelsToHex } from "@/lib/theme.ts";
+import { resolveBrandPalette } from "@/lib/brand-palettes.ts";
+import { DEFAULT_CUSTOM_PRIMARY, normalizeHex } from "@/lib/derive-brand-palette.ts";
 import { cn } from "@/lib/utils.ts";
 import {
   SelfOrderConfig,
@@ -56,6 +57,7 @@ export const AdminSelfOrder = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [customHexDraft, setCustomHexDraft] = useState(DEFAULT_CUSTOM_PRIMARY);
   const qrRefs = useRef(new Map<string, HTMLDivElement>());
   const { t } = useTranslation(["admin", "settings"]);
   const tableName = (table: SelfOrderTable) =>
@@ -80,6 +82,12 @@ export const AdminSelfOrder = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Keep the hex input in sync with the saved custom color.
+  useEffect(() => {
+    const stored = normalizeHex(draft?.themeCustomPrimary);
+    if (stored) setCustomHexDraft(stored);
+  }, [draft?.themeCustomPrimary]);
 
   const floors = useMemo(() => {
     const groups = new Map<string, SelfOrderTable[]>();
@@ -106,6 +114,17 @@ export const AdminSelfOrder = () => {
 
   const set = <K extends keyof SelfOrderSettings>(key: K, value: SelfOrderSettings[K]) =>
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
+
+  const applyCustomPrimary = (raw: string) => {
+    const hex = normalizeHex(raw);
+    if (!hex) return;
+    setCustomHexDraft(hex);
+    set("themeBrand", "custom");
+    set("themeCustomPrimary", hex);
+  };
+  const customPrimaryValue =
+    normalizeHex(draft?.themeCustomPrimary) ?? normalizeHex(customHexDraft) ?? DEFAULT_CUSTOM_PRIMARY;
+  const customPreview = resolveBrandPalette("custom", "light", customPrimaryValue);
 
   const onlineTypes = config.paymentTypes.filter((pt) => pt.gateway && ONLINE_GATEWAYS.includes(pt.gateway));
   const toOption = (item: { id: string; name: string }): Option => ({ label: item.name, value: item.id });
@@ -282,14 +301,17 @@ export const AdminSelfOrder = () => {
               {t("qrOrdering.themeDescription", { defaultValue: "Colors for the QR ordering page. Light/dark can follow each customer’s phone." })}
             </p>
             <div className="flex flex-wrap gap-2">
-              {BRAND_PRESET_IDS.map((preset) => {
-                const palette = getBrandPalette(preset, "light");
-                const active = (draft.themeBrand ?? "classic") === preset;
+              {BRAND_IDS.map((brandId) => {
+                const palette = resolveBrandPalette(brandId, "light", customPrimaryValue);
+                const active = (draft.themeBrand ?? "classic") === brandId;
                 return (
                   <button
-                    key={preset}
+                    key={brandId}
                     type="button"
-                    onClick={() => set("themeBrand", preset)}
+                    onClick={() => {
+                      set("themeBrand", brandId);
+                      if (brandId === "custom") set("themeCustomPrimary", customPrimaryValue);
+                    }}
                     className={cn(
                       "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors",
                       active ? "border-primary bg-primary/10 font-semibold" : "border-border",
@@ -299,7 +321,7 @@ export const AdminSelfOrder = () => {
                       <span className="h-full w-1/2" style={{ background: `rgb(${palette.canvas})` }} />
                       <span className="h-full w-1/2" style={{ background: `rgb(${palette.primary})` }} />
                     </span>
-                    {t(`settings:theme.brand.${preset}`)}
+                    {t(`settings:theme.brand.${brandId}`)}
                   </button>
                 );
               })}
@@ -325,6 +347,51 @@ export const AdminSelfOrder = () => {
                 })}
               </div>
             </div>
+
+            {draft.themeBrand === "custom" && (
+              <div className="mt-4 rounded-xl border border-border bg-surface p-4">
+                <p className="mb-3 text-sm text-muted">{t("settings:theme.customDescription")}</p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="form-label" htmlFor="so-theme-custom-color">{t("settings:theme.customPrimary")}</label>
+                    <Input
+                      id="so-theme-custom-color"
+                      type="color"
+                      className="h-12 w-16 cursor-pointer p-1"
+                      value={customPrimaryValue}
+                      onChange={(e) => applyCustomPrimary(e.target.value)}
+                    />
+                  </div>
+                  <div className="min-w-[9rem] flex-1">
+                    <label className="form-label" htmlFor="so-theme-custom-hex">{t("settings:theme.customHex")}</label>
+                    <Input
+                      id="so-theme-custom-hex"
+                      type="text"
+                      value={customHexDraft}
+                      placeholder={DEFAULT_CUSTOM_PRIMARY}
+                      onChange={(e) => setCustomHexDraft(e.target.value)}
+                      onBlur={() => applyCustomPrimary(customHexDraft)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") applyCustomPrimary(customHexDraft);
+                      }}
+                    />
+                  </div>
+                  <Button type="button" variant="primary" filled size="lg" onClick={() => applyCustomPrimary(customHexDraft)}>
+                    {t("settings:theme.customApply")}
+                  </Button>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted">{t("settings:theme.customPreview")}</span>
+                  {[customPreview.primary, customPreview.surface, customPreview.canvas, customPreview.border].map((channels, index) => (
+                    <span
+                      key={index}
+                      className="inline-block h-6 w-6 rounded-md border border-border"
+                      style={{ backgroundColor: rgbChannelsToHex(channels) }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

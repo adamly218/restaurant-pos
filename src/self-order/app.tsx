@@ -88,8 +88,8 @@ export function SelfOrderApp({ token, returningCheckoutId }: { token: string; re
 
   // Apply the theme configured in Manage → QR Ordering (brand + light/dark/system).
   useEffect(
-    () => watchSelfOrderTheme(menu?.theme?.brand, menu?.theme?.mode),
-    [menu?.theme?.brand, menu?.theme?.mode],
+    () => watchSelfOrderTheme(menu?.theme?.brand, menu?.theme?.mode, menu?.theme?.customPrimary),
+    [menu?.theme?.brand, menu?.theme?.mode, menu?.theme?.customPrimary],
   );
 
   const finish = (status: CheckoutStatus) => {

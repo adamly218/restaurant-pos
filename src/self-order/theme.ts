@@ -5,13 +5,13 @@
  * this maps the same brand palettes (`brand-palettes.ts`) onto the page's
  * `--so-*` tokens so the customer page matches the configured app colors.
  */
-import { getBrandPalette } from '@/lib/brand-palettes.ts';
-import { BRAND_PRESET_IDS } from '@/lib/theme.ts';
-import type { AppBrandPresetId, ResolvedAppTheme } from '@/lib/theme.ts';
+import { resolveBrandPalette } from '@/lib/brand-palettes.ts';
+import { BRAND_IDS } from '@/lib/theme.ts';
+import type { AppBrandId, ResolvedAppTheme } from '@/lib/theme.ts';
 
 export type SelfOrderThemeMode = 'light' | 'dark' | 'system';
 
-const PRESET_IDS = new Set<string>(BRAND_PRESET_IDS);
+const BRAND_SET = new Set<string>(BRAND_IDS);
 
 type Rgb = { r: number; g: number; b: number };
 
@@ -31,8 +31,8 @@ const mix = (a: Rgb, b: Rgb, weightA: number): Rgb => ({
   b: a.b * weightA + b.b * (1 - weightA),
 });
 
-export const normalizeSelfOrderBrand = (brand: string | undefined): AppBrandPresetId =>
-  (brand && PRESET_IDS.has(brand) ? brand : 'classic') as AppBrandPresetId;
+export const normalizeSelfOrderBrand = (brand: string | undefined): AppBrandId =>
+  (brand && BRAND_SET.has(brand) ? brand : 'classic') as AppBrandId;
 
 export const isSelfOrderThemeMode = (mode: unknown): mode is SelfOrderThemeMode =>
   mode === 'light' || mode === 'dark' || mode === 'system';
@@ -54,12 +54,13 @@ export const systemPrefersDark = (): boolean =>
 export function applySelfOrderTheme(
   brandInput: string | undefined,
   modeInput: string | undefined,
+  customPrimary?: string | null,
 ): void {
   if (typeof document === 'undefined') return;
 
   const brand = normalizeSelfOrderBrand(brandInput);
   const mode = resolveSelfOrderTheme(modeInput, systemPrefersDark());
-  const palette = getBrandPalette(brand, mode);
+  const palette = resolveBrandPalette(brand, mode, customPrimary);
 
   const canvas = parseChannels(palette.canvas);
   const foreground = parseChannels(palette.foreground);
@@ -96,22 +97,23 @@ export function applySelfOrderTheme(
 export function watchSelfOrderTheme(
   brand: string | undefined,
   mode: string | undefined,
+  customPrimary?: string | null,
   onChange?: (resolved: ResolvedAppTheme) => void,
 ): () => void {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
     return () => undefined;
   }
   if (mode !== 'system') {
-    applySelfOrderTheme(brand, mode);
+    applySelfOrderTheme(brand, mode, customPrimary);
     return () => undefined;
   }
 
   const query = window.matchMedia('(prefers-color-scheme: dark)');
   const handler = () => {
-    applySelfOrderTheme(brand, mode);
+    applySelfOrderTheme(brand, mode, customPrimary);
     onChange?.(resolveSelfOrderTheme(mode, query.matches));
   };
-  applySelfOrderTheme(brand, mode);
+  applySelfOrderTheme(brand, mode, customPrimary);
   query.addEventListener('change', handler);
   return () => query.removeEventListener('change', handler);
 }

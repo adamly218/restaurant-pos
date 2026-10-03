@@ -20,7 +20,7 @@ const payments = require('./payment-client');
 const TERMINAL_ID = 'self-order';
 const SETTINGS_KEY = 'self_order';
 const ONLINE_GATEWAYS = ['stripe', 'paypal'];
-const THEME_BRANDS = ['classic', 'ocean', 'forest', 'cream', 'ruby', 'sapphire'];
+const THEME_BRANDS = ['classic', 'ocean', 'forest', 'cream', 'ruby', 'sapphire', 'custom'];
 const THEME_MODES = ['light', 'dark', 'system'];
 const MAX_LINES = 50;
 const MAX_QUANTITY = 50;
@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS = {
   baseUrl: '',
   themeBrand: 'classic',
   themeMode: 'system',
+  themeCustomPrimary: null,
 };
 
 class SelfOrderError extends Error {
@@ -127,6 +128,11 @@ async function saveSettings(db, input) {
   if ('themeMode' in input) {
     const mode = str(input.themeMode, 10).toLowerCase();
     if (THEME_MODES.includes(mode)) next.themeMode = mode;
+  }
+  if ('themeCustomPrimary' in input) {
+    const raw = str(input.themeCustomPrimary, 9);
+    const match = raw.match(/^#?([0-9a-fA-F]{6})$/);
+    next.themeCustomPrimary = match ? `#${match[1].toLowerCase()}` : null;
   }
 
   await db.query(
@@ -271,7 +277,11 @@ async function getPublicMenu(db, token) {
     restaurant: { name: settings.restaurantName, welcomeText: settings.welcomeText },
     table: { name: table.name, number: table.number, floor: table.floorName },
     currency: settings.currency,
-    theme: { brand: settings.themeBrand, mode: settings.themeMode },
+    theme: {
+      brand: settings.themeBrand,
+      mode: settings.themeMode,
+      customPrimary: settings.themeCustomPrimary ?? null,
+    },
     orderTax: orderTax ? { id: idOf(orderTax.id), name: String(orderTax.name ?? 'Tax'), rate: Number(orderTax.rate || 0) } : null,
     categories,
     dishes: dishes.map((dish) => ({
